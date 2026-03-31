@@ -15,17 +15,21 @@ const themeOptions = [
   { value: "system", label: "跟随系统", icon: "lucide--monitor" },
 ] as const;
 
-const SettingsPopover = () => {
+const SettingsPopover = ({
+  onLogout,
+}: {
+  onLogout: () => void;
+}) => {
   const { theme, setTheme } = useTheme();
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
-          className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          aria-label="设置"
         >
           <span className="iconify lucide--settings w-4 h-4 shrink-0" />
-          <span>设置</span>
         </button>
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-56 p-2 border-none outline-none">
@@ -58,6 +62,13 @@ const SettingsPopover = () => {
 
         {/* Version Info */}
         <div className="mt-2 border-t border-border pt-2">
+          <button
+            onClick={onLogout}
+            className="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-popover-foreground transition-colors hover:bg-accent"
+          >
+            <span className="iconify lucide--log-out w-3.5 h-3.5 shrink-0" />
+            <span>退出登录</span>
+          </button>
           <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">
             <span className="iconify lucide--info w-3.5 h-3.5 shrink-0" />
             <span>版本 v0.0.1</span>
@@ -97,7 +108,13 @@ const getSidebarIconTheme = (toolId: string) => {
   }
 };
 
-export const BaseSidebar = () => {
+export const BaseSidebar = ({
+  username,
+  onLogout,
+}: {
+  username: string;
+  onLogout: () => void;
+}) => {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 
@@ -165,7 +182,12 @@ export const BaseSidebar = () => {
 
       {/* Footer - Settings */}
       <div className="shrink-0 border-t border-sidebar-border p-2">
-        <SettingsPopover />
+        <div className="flex items-center justify-between">
+          <div className="truncate px-1 text-xs font-medium text-muted-foreground">
+            {username ? `Hi, ${username}` : "Hi"}
+          </div>
+          <SettingsPopover onLogout={onLogout} />
+        </div>
       </div>
     </div>
   );

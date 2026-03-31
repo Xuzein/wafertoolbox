@@ -10,6 +10,16 @@
 /* Default solid background to avoid dark edge artifacts on Windows frameless windows. */
 body {
     background-color: var(--background);
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "SF Pro Display",
+        "PingFang SC",
+        "Hiragino Sans GB",
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
 }
 
 #root {
@@ -84,7 +94,16 @@ html {
     --sidebar-accent-foreground: rgb(0, 0, 0);
     --sidebar-border: rgba(0, 0, 0, 0.08);
     --sidebar-ring: rgb(0, 0, 0);
-    --font-sans: Geist, sans-serif;
+    --font-sans:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "SF Pro Display",
+        "PingFang SC",
+        "Hiragino Sans GB",
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
     --font-serif: Georgia, serif;
     --font-mono: Geist Mono, monospace;
     --radius: 0.5rem;
@@ -153,7 +172,16 @@ html {
     --sidebar-accent-foreground: rgb(255, 255, 255);
     --sidebar-border: rgba(255, 255, 255, 0.08);
     --sidebar-ring: rgb(164, 164, 164);
-    --font-sans: Geist, sans-serif;
+    --font-sans:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "SF Pro Display",
+        "PingFang SC",
+        "Hiragino Sans GB",
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
     --font-serif: Georgia, serif;
     --font-mono: Geist Mono, monospace;
     --radius: 0.5rem;

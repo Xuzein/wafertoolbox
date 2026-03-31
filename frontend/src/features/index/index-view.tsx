@@ -77,7 +77,7 @@ const IndexView: React.FC = () => {
               </div>
             </div>
 
-            <p className="relative z-10 mt-5 line-clamp-2 text-xs leading-5 text-muted-foreground">
+            <p className="relative z-10 mt-5 line-clamp-2 rounded-lg bg-muted/55 px-3 py-2 text-xs leading-5 text-secondary-foreground/85">
               {tool.description}
             </p>
 
