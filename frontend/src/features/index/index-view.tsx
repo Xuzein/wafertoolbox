@@ -43,13 +43,14 @@ const IndexView: React.FC = () => {
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {tools.map((tool) => {
           const iconTheme = getToolIconTheme(tool.id);
+          const showBrandLogo = tool.category === "Wafer工具" || tool.id === "csv-test-merge";
           return (
             <Link
               key={tool.id}
               to={tool.path}
               className="group relative flex min-h-[204px] flex-col overflow-hidden rounded-xl border border-input/70 bg-card p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-border hover:bg-card hover:shadow-md"
             >
-            {tool.category === "Wafer工具" && (
+            {showBrandLogo && (
               <div className="pointer-events-none absolute right-3 top-3 z-0 w-[24%] max-w-[76px] opacity-45 transition-all duration-200 group-hover:opacity-85 group-hover:brightness-110 group-hover:saturate-150 group-focus-visible:opacity-85">
                 <img
                   src="/starshine-logo.png"
