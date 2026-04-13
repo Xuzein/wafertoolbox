@@ -324,31 +324,43 @@ const CsvTestMergeView: React.FC = () => {
         </div>
 
         <div className="rounded-lg border border-input bg-card p-4">
-          <div className="mb-2 text-sm font-semibold text-foreground">预览（每片 wafer 一行）</div>
+          <div className="mb-2 text-sm font-semibold text-foreground">预览（每片 wafer 一列）</div>
           <div className="hide-scrollbar max-h-full overflow-auto rounded-md border border-input">
             <table className="min-w-full border-collapse text-xs">
               <thead className="sticky top-0 bg-muted/60">
                 <tr>
-                  <th className="border-b border-input px-2 py-2 text-left font-medium text-foreground">Wafer</th>
-                  <th className="border-b border-input px-2 py-2 text-left font-medium text-foreground">
-                    {selectedTestItem || "测试项数据"}
-                  </th>
+                  {selectedRows.length === 0 ? (
+                    <th className="border-b border-input px-2 py-2 text-left font-medium text-foreground">Wafer</th>
+                  ) : (
+                    selectedRows.map((row) => (
+                      <th
+                        key={`header-${row.fileName}-${row.wafer}`}
+                        className="border-b border-input px-2 py-2 text-left font-medium text-foreground"
+                      >
+                        {row.wafer}
+                      </th>
+                    ))
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {selectedRows.length === 0 ? (
                   <tr>
-                    <td className="px-2 py-3 text-muted-foreground" colSpan={2}>
+                    <td className="px-2 py-3 text-muted-foreground" colSpan={1}>
                       暂无可预览数据
                     </td>
                   </tr>
                 ) : (
-                  selectedRows.map((row) => (
-                    <tr key={`${row.fileName}-${row.wafer}`} className="align-top">
-                      <td className="border-b border-input px-2 py-2 text-foreground">{row.wafer}</td>
-                      <td className="border-b border-input px-2 py-2 text-muted-foreground">
-                        {row.values.length > 0 ? row.values.join(", ") : "-"}
-                      </td>
+                  Array.from({ length: maxValueCount }).map((_, pointIndex) => (
+                    <tr key={`point-${pointIndex}`} className="align-top">
+                      {selectedRows.map((row) => (
+                        <td
+                          key={`${row.fileName}-${row.wafer}-${pointIndex}`}
+                          className="border-b border-input px-2 py-2 text-muted-foreground"
+                        >
+                          {row.values[pointIndex] ?? ""}
+                        </td>
+                      ))}
                     </tr>
                   ))
                 )}

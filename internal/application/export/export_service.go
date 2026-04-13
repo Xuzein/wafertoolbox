@@ -72,48 +72,22 @@ func normalizeXlsxFileName(fileName string) string {
 	return name
 }
 
-func (s *Service) SaveMergedTestItemExcel(fileName string, testItem string, rows []MergedTestItemRow) (string, error) {
+func (s *Service) SaveMergedTestItemExcel(fileName string, _ string, rows []MergedTestItemRow) (string, error) {
 	workbook := excelize.NewFile()
 	sheetName := "Merged"
 	defaultSheet := workbook.GetSheetName(0)
 	workbook.SetSheetName(defaultSheet, sheetName)
 
-	maxValuesLen := 0
-	for _, row := range rows {
-		if len(row.Values) > maxValuesLen {
-			maxValuesLen = len(row.Values)
-		}
-	}
-
-	if err := workbook.SetCellValue(sheetName, "A1", "Wafer"); err != nil {
-		return "", err
-	}
-	for col := 0; col < maxValuesLen; col += 1 {
-		cell, err := excelize.CoordinatesToCellName(col+2, 1)
+	for colIndex, row := range rows {
+		headerCell, err := excelize.CoordinatesToCellName(colIndex+1, 1)
 		if err != nil {
 			return "", err
 		}
-		header := testItem
-		if maxValuesLen > 1 {
-			header = testItem + "_" + strconv.Itoa(col+1)
-		}
-		if err := workbook.SetCellValue(sheetName, cell, header); err != nil {
+		if err := workbook.SetCellValue(sheetName, headerCell, row.Wafer); err != nil {
 			return "", err
 		}
-	}
-
-	for rowIndex, row := range rows {
-		excelRow := rowIndex + 2
-		cell, err := excelize.CoordinatesToCellName(1, excelRow)
-		if err != nil {
-			return "", err
-		}
-		if err := workbook.SetCellValue(sheetName, cell, row.Wafer); err != nil {
-			return "", err
-		}
-
 		for valueIndex, rawValue := range row.Values {
-			valueCell, err := excelize.CoordinatesToCellName(valueIndex+2, excelRow)
+			valueCell, err := excelize.CoordinatesToCellName(colIndex+1, valueIndex+2)
 			if err != nil {
 				return "", err
 			}
@@ -141,7 +115,7 @@ func (s *Service) SaveMergedTestItemExcel(fileName string, testItem string, rows
 	if err != nil {
 		return "", err
 	}
-	lastHeaderCell, err := excelize.CoordinatesToCellName(maxValuesLen+1, 1)
+	lastHeaderCell, err := excelize.CoordinatesToCellName(len(rows), 1)
 	if err != nil {
 		return "", err
 	}
@@ -151,23 +125,21 @@ func (s *Service) SaveMergedTestItemExcel(fileName string, testItem string, rows
 	if err := workbook.SetPanes(sheetName, &excelize.Panes{
 		Freeze:      true,
 		Split:       false,
-		XSplit:      1,
-		TopLeftCell: "B2",
-		ActivePane:  "bottomRight",
+		YSplit:      1,
+		TopLeftCell: "A2",
+		ActivePane:  "bottomLeft",
 	}); err != nil {
 		return "", err
 	}
-	if err := workbook.SetColWidth(sheetName, "A", "A", 18); err != nil {
+	if len(rows) == 0 {
+		return "", errors.New("no rows to export")
+	}
+	lastCol, err := excelize.ColumnNumberToName(len(rows))
+	if err != nil {
 		return "", err
 	}
-	if maxValuesLen > 0 {
-		lastDataCol, err := excelize.ColumnNumberToName(maxValuesLen + 1)
-		if err != nil {
-			return "", err
-		}
-		if err := workbook.SetColWidth(sheetName, "B", lastDataCol, 12); err != nil {
-			return "", err
-		}
+	if err := workbook.SetColWidth(sheetName, "A", lastCol, 16); err != nil {
+		return "", err
 	}
 
 	var out bytes.Buffer
