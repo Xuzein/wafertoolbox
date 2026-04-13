@@ -30,7 +30,7 @@ export const tools: ToolItem[] = [
     id: "csv-test-merge",
     name: "CSV Wafer Fusion",
     description: "上传多个 Summary CSV，按测试项合并并导出 Excel。",
-    icon: "tabler--table-export",
+    icon: "tabler--table",
     path: "/tools/csv-test-merge",
     category: "CP工具",
   },
