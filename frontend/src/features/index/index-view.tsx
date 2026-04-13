@@ -15,6 +15,11 @@ const getToolIconTheme = (toolId: string) => {
         box: "bg-chart-1/15 group-hover:bg-chart-1/25",
         icon: "text-chart-1",
       };
+    case "csv-test-merge":
+      return {
+        box: "bg-chart-4/15 group-hover:bg-chart-4/25",
+        icon: "text-chart-4",
+      };
     default:
       return {
         box: "bg-primary/10 group-hover:bg-primary/20",
