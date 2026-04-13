@@ -20,7 +20,7 @@ func sanitizeFileName(name string) string {
 	if fileName == "" {
 		fileName = "wafermap.png"
 	}
-	if !strings.HasSuffix(strings.ToLower(fileName), ".png") {
+	if filepath.Ext(fileName) == "" {
 		fileName += ".png"
 	}
 	re := regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)

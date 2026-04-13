@@ -56,10 +56,32 @@ type WaferMapExportRequest struct {
 	FailPoints      []WaferPoint `json:"failPoints"`
 }
 
+type MergedTestItemRow struct {
+	Wafer  string   `json:"wafer"`
+	Values []string `json:"values"`
+}
+
+type MergedTestItemExcelRequest struct {
+	FileName string              `json:"fileName"`
+	TestItem string              `json:"testItem"`
+	Rows     []MergedTestItemRow `json:"rows"`
+}
+
 func toDomainPoints(points []WaferPoint) []wafer.Point {
 	result := make([]wafer.Point, 0, len(points))
 	for _, p := range points {
 		result = append(result, wafer.Point{X: p.X, Y: p.Y})
+	}
+	return result
+}
+
+func toMergedRows(rows []MergedTestItemRow) []exportapp.MergedTestItemRow {
+	result := make([]exportapp.MergedTestItemRow, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, exportapp.MergedTestItemRow{
+			Wafer:  row.Wafer,
+			Values: row.Values,
+		})
 	}
 	return result
 }
@@ -89,4 +111,8 @@ func (a *App) SaveWaferMapPNG(req WaferMapExportRequest) (string, error) {
 		FailPoints:      toDomainPoints(req.FailPoints),
 	}
 	return a.exportService.SaveWaferMapPNG(req.FileName, renderReq)
+}
+
+func (a *App) SaveMergedTestItemExcel(req MergedTestItemExcelRequest) (string, error) {
+	return a.exportService.SaveMergedTestItemExcel(req.FileName, req.TestItem, toMergedRows(req.Rows))
 }

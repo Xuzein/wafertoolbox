@@ -100,6 +100,11 @@ const getSidebarIconTheme = (toolId: string) => {
         box: "bg-chart-1/20",
         icon: "text-chart-1",
       };
+    case "csv-test-merge":
+      return {
+        box: "bg-chart-4/20",
+        icon: "text-chart-4",
+      };
     default:
       return {
         box: "bg-primary/10",

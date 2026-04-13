@@ -6,6 +6,10 @@ export function SaveBase64Image(arg1, arg2) {
   return window['go']['main']['App']['SaveBase64Image'](arg1, arg2);
 }
 
+export function SaveMergedTestItemExcel(arg1) {
+  return window['go']['main']['App']['SaveMergedTestItemExcel'](arg1);
+}
+
 export function SaveWaferMapPNG(arg1) {
   return window['go']['main']['App']['SaveWaferMapPNG'](arg1);
 }

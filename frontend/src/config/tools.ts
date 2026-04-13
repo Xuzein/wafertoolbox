@@ -26,4 +26,12 @@ export const tools: ToolItem[] = [
     path: "/tools/wafer-overlay",
     category: "Wafer工具",
   },
+  {
+    id: "csv-test-merge",
+    name: "CSV 测试项合并",
+    description: "上传多个 Summary CSV，按测试项合并并导出 Excel。",
+    icon: "tabler--table-export",
+    path: "/tools/csv-test-merge",
+    category: "CP工具",
+  },
 ];
