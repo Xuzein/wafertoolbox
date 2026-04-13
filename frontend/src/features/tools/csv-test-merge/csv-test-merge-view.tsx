@@ -16,7 +16,7 @@ import { Download, FileText, Loader2, X } from "lucide-react";
 import { parseSummaryCsv, type ParsedSummaryCsv } from "./csv-test-merge-utils";
 
 const CsvTestMergeView: React.FC = () => {
-  useAppTitle({ title: "CSV 测试项合并" });
+  useAppTitle({ title: "CSV Wafer Fusion" });
 
   const [parsedFiles, setParsedFiles] = useState<ParsedSummaryCsv[]>([]);
   const [selectedTestItem, setSelectedTestItem] = useState("");
