@@ -127,8 +127,6 @@ export const BaseSidebar = () => {
             <span>首页</span>
           </Link>
 
-          {/* Divider */}
-          <div className="my-2 border-t border-sidebar-border/80" />
           {tools.map((tool) => {
             const isActive = currentPath === tool.path;
             const iconTheme = getSidebarIconTheme(tool.id);
@@ -164,7 +162,7 @@ export const BaseSidebar = () => {
       </nav>
 
       {/* Footer - Settings */}
-      <div className="shrink-0 border-t border-sidebar-border p-2">
+      <div className="shrink-0 p-2">
         <SettingsPopover />
       </div>
     </div>

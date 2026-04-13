@@ -8,8 +8,18 @@ import (
 )
 
 func getMacOptions() *mac.Options {
+	cfg := LoadConfig()
+	appearance := mac.DefaultAppearance
+	switch cfg.Theme {
+	case "dark":
+		appearance = mac.NSAppearanceNameDarkAqua
+	case "light":
+		appearance = mac.NSAppearanceNameAqua
+	// "system" or anything else → DefaultAppearance (follow system)
+	}
+
 	return &mac.Options{
-		Appearance: mac.DefaultAppearance,
+		Appearance: appearance,
 
 		TitleBar: &mac.TitleBar{
 			TitlebarAppearsTransparent: true,
