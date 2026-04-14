@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAppTitle } from "@/components/layout/app-title-context";
-import { Download, FileText, Loader2, X } from "lucide-react";
+import { Download, FileText, Loader2, Search, ZoomIn, ZoomOut, X } from "lucide-react";
 import { ClipboardSetText } from "@wailsjs/runtime/runtime";
 import {
   buildOverlayWaferMap,
@@ -45,6 +45,11 @@ const sequenceToneClasses = [
   "bg-chart-4/20 text-foreground border-chart-4/40",
   "bg-chart-5/20 text-foreground border-chart-5/40",
 ];
+
+const OVERLAY_PREVIEW_MIN_SCALE = 1;
+const OVERLAY_PREVIEW_MAX_SCALE = 4;
+const OVERLAY_PREVIEW_STEP = 0.25;
+const OVERLAY_PREVIEW_BASE_SIZE = 720;
 
 const WaferMeta: React.FC<{ map: ParsedAoiWaferMap; title?: string; compact?: boolean }> = ({
   map,
@@ -130,6 +135,8 @@ const WaferOverlayView: React.FC = () => {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [copyHint, setCopyHint] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isOverlayPreviewOpen, setIsOverlayPreviewOpen] = useState(false);
+  const [overlayPreviewScale, setOverlayPreviewScale] = useState(1.75);
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounter = useRef(0);
   const [draggingFileName, setDraggingFileName] = useState<string | null>(null);
@@ -368,6 +375,18 @@ const WaferOverlayView: React.FC = () => {
     });
   };
 
+  const handleOpenOverlayPreview = () => {
+    setOverlayPreviewScale(1.75);
+    setIsOverlayPreviewOpen(true);
+  };
+
+  const adjustOverlayPreviewScale = (delta: number) => {
+    setOverlayPreviewScale((current) => {
+      const next = Math.round((current + delta) / OVERLAY_PREVIEW_STEP) * OVERLAY_PREVIEW_STEP;
+      return Math.min(OVERLAY_PREVIEW_MAX_SCALE, Math.max(OVERLAY_PREVIEW_MIN_SCALE, next));
+    });
+  };
+
   return (
     <div
       className="relative flex h-full min-h-0 flex-col gap-5 p-6"
@@ -441,25 +460,36 @@ const WaferOverlayView: React.FC = () => {
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">最终叠图效果</h3>
               {overlayMap && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-7 w-7"
-                  title="下载高清图"
-                  disabled={isDownloading}
-                  onClick={() =>
-                    void handleDownload(overlayMap, `overlay-${overlayMap.waferId}.png`, 2800, {
-                      pointColorOverrides: overlayDiffHighlight?.cellFillMap,
-                      preferWailsExporter: overlayDiffHighlight ? false : true,
-                    })
-                  }
-                >
-                  {isDownloading ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Download className="h-3.5 w-3.5" />
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    title="放大预览"
+                    onClick={handleOpenOverlayPreview}
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    title="下载高清图"
+                    disabled={isDownloading}
+                    onClick={() =>
+                      void handleDownload(overlayMap, `overlay-${overlayMap.waferId}.png`, 2800, {
+                        pointColorOverrides: overlayDiffHighlight?.cellFillMap,
+                        preferWailsExporter: overlayDiffHighlight ? false : true,
+                      })
+                    }
+                  >
+                    {isDownloading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
             {overlayMap ? (
@@ -652,6 +682,68 @@ const WaferOverlayView: React.FC = () => {
               <Button>我知道了</Button>
             </DialogClose>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isOverlayPreviewOpen} onOpenChange={setIsOverlayPreviewOpen}>
+        <DialogContent className="h-[88vh] w-[96vw] max-w-[1200px] p-4 sm:max-w-[1200px]">
+          <DialogHeader className="gap-3">
+            <DialogTitle className="text-base">叠图放大预览</DialogTitle>
+            <DialogDescription>先放大查看细节，再决定是否下载高清图。</DialogDescription>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2"
+                disabled={overlayPreviewScale <= OVERLAY_PREVIEW_MIN_SCALE}
+                onClick={() => adjustOverlayPreviewScale(-OVERLAY_PREVIEW_STEP)}
+              >
+                <ZoomOut className="mr-1 h-3.5 w-3.5" />
+                缩小
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2"
+                disabled={overlayPreviewScale >= OVERLAY_PREVIEW_MAX_SCALE}
+                onClick={() => adjustOverlayPreviewScale(OVERLAY_PREVIEW_STEP)}
+              >
+                <ZoomIn className="mr-1 h-3.5 w-3.5" />
+                放大
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => setOverlayPreviewScale(1.75)}
+              >
+                重置
+              </Button>
+              <span className="text-xs text-muted-foreground">当前倍率 {overlayPreviewScale.toFixed(2)}x</span>
+            </div>
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-input bg-muted/25 p-3">
+            {overlayMap ? (
+              <div
+                className="mx-auto"
+                style={{
+                  width: `${Math.round(OVERLAY_PREVIEW_BASE_SIZE * overlayPreviewScale)}px`,
+                  height: `${Math.round(OVERLAY_PREVIEW_BASE_SIZE * overlayPreviewScale)}px`,
+                }}
+              >
+                <WaferMapSvg
+                  map={overlayMap}
+                  cellFillMap={overlayDiffHighlight?.cellFillMap}
+                  cellMarkers={overlayDiffHighlight?.cellMarkers}
+                />
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                暂无可预览叠图
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
