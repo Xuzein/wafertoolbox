@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,6 +16,7 @@ import {
   buildOverlayWaferMap,
   downloadWaferMapPng,
   parseAoiWaferFile,
+  renderWaferMapDataURL,
   validateMapsForOverlay,
 } from "./wafer-overlay-utils";
 import type { ParsedAoiWaferMap } from "./wafer-overlay-types";
@@ -50,6 +51,7 @@ const OVERLAY_PREVIEW_MIN_SCALE = 1;
 const OVERLAY_PREVIEW_MAX_SCALE = 4;
 const OVERLAY_PREVIEW_STEP = 0.25;
 const OVERLAY_PREVIEW_BASE_SIZE = 720;
+const OVERLAY_MARKER_MAX_COUNT = 800;
 
 const WaferMeta: React.FC<{ map: ParsedAoiWaferMap; title?: string; compact?: boolean }> = ({
   map,
@@ -137,6 +139,8 @@ const WaferOverlayView: React.FC = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isOverlayPreviewOpen, setIsOverlayPreviewOpen] = useState(false);
   const [overlayPreviewScale, setOverlayPreviewScale] = useState(1.75);
+  const [overlayPreviewImageDataURL, setOverlayPreviewImageDataURL] = useState<string>("");
+  const [isOverlayPreviewRendering, setIsOverlayPreviewRendering] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounter = useRef(0);
   const [draggingFileName, setDraggingFileName] = useState<string | null>(null);
@@ -157,7 +161,7 @@ const WaferOverlayView: React.FC = () => {
     const rightColor = "#f59e0b";
     const bothColor = "#8b5cf6";
     const cellFillMap: Record<string, string> = {};
-    const cellMarkers: Record<
+    const cellMarkersDraft: Record<
       string,
       {
         fill: string;
@@ -181,22 +185,24 @@ const WaferOverlayView: React.FC = () => {
         const key = `${rowIndex}-${colIndex}`;
         if (leftFail && rightFail) {
           cellFillMap[key] = bothColor;
-          cellMarkers[key] = { fill: bothColor, label: "共" };
+          cellMarkersDraft[key] = { fill: bothColor, label: "共" };
           bothPoints.push({ x: colIndex + 1, y: rowIndex + 1 });
           bothCount += 1;
         } else if (leftFail) {
           cellFillMap[key] = leftColor;
-          cellMarkers[key] = { fill: leftColor, label: "1" };
+          cellMarkersDraft[key] = { fill: leftColor, label: "1" };
           leftOnlyPoints.push({ x: colIndex + 1, y: rowIndex + 1 });
           leftOnlyCount += 1;
         } else {
           cellFillMap[key] = rightColor;
-          cellMarkers[key] = { fill: rightColor, label: "2" };
+          cellMarkersDraft[key] = { fill: rightColor, label: "2" };
           rightOnlyPoints.push({ x: colIndex + 1, y: rowIndex + 1 });
           rightOnlyCount += 1;
         }
       }
     }
+    const totalDiffCount = leftOnlyCount + rightOnlyCount + bothCount;
+    const markerSuppressed = totalDiffCount > OVERLAY_MARKER_MAX_COUNT;
 
     return {
       leftColor,
@@ -206,7 +212,8 @@ const WaferOverlayView: React.FC = () => {
       rightOnlyCount,
       bothCount,
       cellFillMap,
-      cellMarkers,
+      cellMarkers: markerSuppressed ? undefined : cellMarkersDraft,
+      markerSuppressed,
       leftOnlyPoints,
       rightOnlyPoints,
       bothPoints,
@@ -375,9 +382,40 @@ const WaferOverlayView: React.FC = () => {
     });
   };
 
+  const renderOverlayPreviewImage = useCallback(() => {
+    if (!overlayMap || isOverlayPreviewRendering) {
+      return;
+    }
+    setIsOverlayPreviewRendering(true);
+    window.setTimeout(() => {
+      try {
+        const dataURL = renderWaferMapDataURL(overlayMap, {
+          maxImageSize: 2200,
+          pointColorOverrides: overlayDiffHighlight?.cellFillMap,
+        });
+        setOverlayPreviewImageDataURL(dataURL ?? "");
+      } finally {
+        setIsOverlayPreviewRendering(false);
+      }
+    }, 0);
+  }, [overlayMap, overlayDiffHighlight?.cellFillMap, isOverlayPreviewRendering]);
+
+  useEffect(() => {
+    setOverlayPreviewImageDataURL("");
+  }, [overlayMap, overlayDiffHighlight?.cellFillMap]);
+
+  useEffect(() => {
+    if (isOverlayPreviewOpen && !overlayPreviewImageDataURL && overlayMap) {
+      renderOverlayPreviewImage();
+    }
+  }, [isOverlayPreviewOpen, overlayPreviewImageDataURL, overlayMap, renderOverlayPreviewImage]);
+
   const handleOpenOverlayPreview = () => {
     setOverlayPreviewScale(1.75);
     setIsOverlayPreviewOpen(true);
+    if (!overlayPreviewImageDataURL) {
+      renderOverlayPreviewImage();
+    }
   };
 
   const adjustOverlayPreviewScale = (delta: number) => {
@@ -517,6 +555,9 @@ const WaferOverlayView: React.FC = () => {
                       />
                       共同缺陷 {overlayDiffHighlight.bothCount}
                     </div>
+                    {overlayDiffHighlight.markerSuppressed && (
+                      <div className="text-muted-foreground">缺陷点较多，已自动隐藏点位标记以提升流畅度</div>
+                    )}
                   </div>
                 )}
                 <div className="min-h-0 flex-1">
@@ -725,19 +766,26 @@ const WaferOverlayView: React.FC = () => {
 
           <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-input bg-muted/25 p-3">
             {overlayMap ? (
-              <div
-                className="mx-auto"
-                style={{
-                  width: `${Math.round(OVERLAY_PREVIEW_BASE_SIZE * overlayPreviewScale)}px`,
-                  height: `${Math.round(OVERLAY_PREVIEW_BASE_SIZE * overlayPreviewScale)}px`,
-                }}
-              >
-                <WaferMapSvg
-                  map={overlayMap}
-                  cellFillMap={overlayDiffHighlight?.cellFillMap}
-                  cellMarkers={overlayDiffHighlight?.cellMarkers}
-                />
-              </div>
+              overlayPreviewImageDataURL ? (
+                <div
+                  className="mx-auto"
+                  style={{
+                    width: `${Math.round(OVERLAY_PREVIEW_BASE_SIZE * overlayPreviewScale)}px`,
+                    height: `${Math.round(OVERLAY_PREVIEW_BASE_SIZE * overlayPreviewScale)}px`,
+                  }}
+                >
+                  <img
+                    src={overlayPreviewImageDataURL}
+                    alt="overlay-preview"
+                    className="h-full w-full rounded-md border border-border bg-card object-contain"
+                    draggable={false}
+                  />
+                </div>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  {isOverlayPreviewRendering ? "正在生成预览图..." : "点击放大后预览图会在此显示"}
+                </div>
+              )
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                 暂无可预览叠图

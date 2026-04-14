@@ -320,6 +320,18 @@ interface ExportPngOptions {
   pointColorOverrides?: Record<string, string>;
 }
 
+interface DrawCanvasOptions {
+  maxImageSize: number;
+  backgroundColor: string;
+  passColor: string;
+  failColor: string;
+  borderColor: string;
+  axisColor: string;
+  circleColor: string;
+  centerColor: string;
+  pointColorOverrides?: Record<string, string>;
+}
+
 interface WailsBridge {
   go?: {
     main?: {
@@ -415,6 +427,94 @@ export const downloadWaferMapPng = async (
     }
   }
 
+  const canvas = drawWaferMapToCanvas(map, {
+    maxImageSize,
+    backgroundColor,
+    passColor,
+    failColor,
+    borderColor,
+    axisColor,
+    circleColor,
+    centerColor,
+    pointColorOverrides,
+  });
+  if (!canvas) {
+    return null;
+  }
+
+  const link = document.createElement("a");
+  const dataURL = canvas.toDataURL("image/png");
+  const saveToDisk = bridge.go?.main?.App?.SaveBase64Image;
+  if (saveToDisk) {
+    try {
+      const savedPath = await saveToDisk(dataURL, fileName);
+      return savedPath;
+    } catch {
+      // fallback to browser download mode
+    }
+  }
+
+  if (requireSavedPath) {
+    throw new Error("当前环境无法返回保存路径，请在 Wails 客户端中执行下载");
+  }
+
+  link.href = dataURL;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  return null;
+};
+
+export const renderWaferMapDataURL = (
+  map: ParsedAoiWaferMap,
+  options: ExportPngOptions = {},
+): string | null => {
+  const {
+    maxImageSize = 2400,
+    backgroundColor = "#f4f4f4",
+    passColor = "#22c55e",
+    failColor = "#e54b4f",
+    borderColor = "#dddddd",
+    axisColor = "#737373",
+    circleColor = "#111111",
+    centerColor = "#000000",
+    pointColorOverrides,
+  } = options;
+
+  const canvas = drawWaferMapToCanvas(map, {
+    maxImageSize,
+    backgroundColor,
+    passColor,
+    failColor,
+    borderColor,
+    axisColor,
+    circleColor,
+    centerColor,
+    pointColorOverrides,
+  });
+  if (!canvas) {
+    return null;
+  }
+  return canvas.toDataURL("image/png");
+};
+
+const drawWaferMapToCanvas = (
+  map: ParsedAoiWaferMap,
+  options: DrawCanvasOptions,
+): HTMLCanvasElement | null => {
+  const {
+    maxImageSize,
+    backgroundColor,
+    passColor,
+    failColor,
+    borderColor,
+    axisColor,
+    circleColor,
+    centerColor,
+    pointColorOverrides,
+  } = options;
+
   const paddingCell = 4;
   const cellWRatio = map.xDies > 0 ? map.xDies : 1;
   const cellHRatio = map.yDies > 0 ? map.yDies : 1;
@@ -431,7 +531,7 @@ export const downloadWaferMapPng = async (
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) {
-    return;
+    return null;
   }
 
   ctx.fillStyle = backgroundColor;
@@ -461,6 +561,8 @@ export const downloadWaferMapPng = async (
   ctx.stroke();
   ctx.globalAlpha = 1;
 
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = Math.max(1, Math.floor(baseScale * 0.03));
   for (let rowIndex = 0; rowIndex < map.rowCount; rowIndex += 1) {
     for (let colIndex = 0; colIndex < map.colCount; colIndex += 1) {
       const state = map.grid[rowIndex][colIndex];
@@ -470,12 +572,8 @@ export const downloadWaferMapPng = async (
       const x = (colIndex + paddingCell) * cellW;
       const y = (rowIndex + paddingCell) * cellH;
       const cellKey = `${rowIndex}-${colIndex}`;
-      ctx.fillStyle =
-        pointColorOverrides?.[cellKey] ??
-        (state === "pass" ? passColor : failColor);
+      ctx.fillStyle = pointColorOverrides?.[cellKey] ?? (state === "pass" ? passColor : failColor);
       ctx.fillRect(x, y, cellW, cellH);
-      ctx.strokeStyle = borderColor;
-      ctx.lineWidth = Math.max(1, Math.floor(baseScale * 0.03));
       ctx.strokeRect(x, y, cellW, cellH);
     }
   }
@@ -484,27 +582,5 @@ export const downloadWaferMapPng = async (
   ctx.beginPath();
   ctx.arc(centerX, centerY, Math.max(2, Math.floor(baseScale * 0.3)), 0, Math.PI * 2);
   ctx.fill();
-
-  const link = document.createElement("a");
-  const dataURL = canvas.toDataURL("image/png");
-  const saveToDisk = bridge.go?.main?.App?.SaveBase64Image;
-  if (saveToDisk) {
-    try {
-      const savedPath = await saveToDisk(dataURL, fileName);
-      return savedPath;
-    } catch {
-      // fallback to browser download mode
-    }
-  }
-
-  if (requireSavedPath) {
-    throw new Error("当前环境无法返回保存路径，请在 Wails 客户端中执行下载");
-  }
-
-  link.href = dataURL;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  return null;
+  return canvas;
 };
