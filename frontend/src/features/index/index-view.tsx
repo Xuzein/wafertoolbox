@@ -17,8 +17,8 @@ const getToolIconTheme = (toolId: string) => {
       };
     case "csv-test-merge":
       return {
-        box: "bg-chart-4/15 group-hover:bg-chart-4/25",
-        icon: "text-chart-4",
+        box: "bg-chart-1/15 group-hover:bg-chart-1/25",
+        icon: "text-chart-1",
       };
     default:
       return {
