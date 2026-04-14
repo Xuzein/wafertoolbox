@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +20,16 @@ import {
 } from "./wafer-overlay-utils";
 import type { ParsedAoiWaferMap } from "./wafer-overlay-types";
 import { WaferMapSvg } from "./wafer-map-svg";
+
+type WaferOverlayViewCache = {
+  maps: ParsedAoiWaferMap[];
+};
+
+const defaultWaferOverlayViewCache: WaferOverlayViewCache = {
+  maps: [],
+};
+
+let waferOverlayViewCache: WaferOverlayViewCache = defaultWaferOverlayViewCache;
 
 const formatYield = (map: ParsedAoiWaferMap): string => {
   if (map.validCount === 0) {
@@ -112,7 +122,7 @@ const WaferOverlayView: React.FC = () => {
     title: "AOI Wafer Overlay",
   });
 
-  const [maps, setMaps] = useState<ParsedAoiWaferMap[]>([]);
+  const [maps, setMaps] = useState<ParsedAoiWaferMap[]>(waferOverlayViewCache.maps);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [notice, setNotice] = useState<string>("");
@@ -124,7 +134,57 @@ const WaferOverlayView: React.FC = () => {
   const dragCounter = useRef(0);
   const [draggingFileName, setDraggingFileName] = useState<string | null>(null);
 
+  useEffect(() => {
+    waferOverlayViewCache = {
+      maps,
+    };
+  }, [maps]);
+
   const overlayMap = useMemo(() => buildOverlayWaferMap(maps), [maps]);
+  const overlayDiffHighlight = useMemo(() => {
+    if (maps.length !== 2 || !overlayMap) {
+      return null;
+    }
+
+    const leftColor = "#ef4444";
+    const rightColor = "#f59e0b";
+    const bothColor = "#8b5cf6";
+    const cellFillMap: Record<string, string> = {};
+    let leftOnlyCount = 0;
+    let rightOnlyCount = 0;
+    let bothCount = 0;
+
+    for (let rowIndex = 0; rowIndex < overlayMap.rowCount; rowIndex += 1) {
+      for (let colIndex = 0; colIndex < overlayMap.colCount; colIndex += 1) {
+        const leftFail = maps[0].grid[rowIndex][colIndex] === "fail";
+        const rightFail = maps[1].grid[rowIndex][colIndex] === "fail";
+        if (!leftFail && !rightFail) {
+          continue;
+        }
+        const key = `${rowIndex}-${colIndex}`;
+        if (leftFail && rightFail) {
+          cellFillMap[key] = bothColor;
+          bothCount += 1;
+        } else if (leftFail) {
+          cellFillMap[key] = leftColor;
+          leftOnlyCount += 1;
+        } else {
+          cellFillMap[key] = rightColor;
+          rightOnlyCount += 1;
+        }
+      }
+    }
+
+    return {
+      leftColor,
+      rightColor,
+      bothColor,
+      leftOnlyCount,
+      rightOnlyCount,
+      bothCount,
+      cellFillMap,
+    };
+  }, [maps, overlayMap]);
 
   const handleFilesDrop = async (files: File[]) => {
     if (files.length === 0) {
@@ -366,8 +426,36 @@ const WaferOverlayView: React.FC = () => {
             </div>
             {overlayMap ? (
               <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-lg border border-input bg-background p-3">
+                {overlayDiffHighlight && (
+                  <div className="flex flex-wrap items-center gap-3 rounded-md border border-input bg-card px-3 py-2 text-xs">
+                    <div className="inline-flex items-center gap-1.5 text-foreground">
+                      <span
+                        className="inline-block h-3 w-3 rounded-sm border border-input"
+                        style={{ backgroundColor: overlayDiffHighlight.leftColor }}
+                      />
+                      图1缺陷 {overlayDiffHighlight.leftOnlyCount}
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 text-foreground">
+                      <span
+                        className="inline-block h-3 w-3 rounded-sm border border-input"
+                        style={{ backgroundColor: overlayDiffHighlight.rightColor }}
+                      />
+                      图2缺陷 {overlayDiffHighlight.rightOnlyCount}
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 text-foreground">
+                      <span
+                        className="inline-block h-3 w-3 rounded-sm border border-input"
+                        style={{ backgroundColor: overlayDiffHighlight.bothColor }}
+                      />
+                      共同缺陷 {overlayDiffHighlight.bothCount}
+                    </div>
+                  </div>
+                )}
                 <div className="min-h-0 flex-1">
-                  <WaferMapSvg map={overlayMap} />
+                  <WaferMapSvg
+                    map={overlayMap}
+                    cellFillMap={overlayDiffHighlight?.cellFillMap}
+                  />
                 </div>
               </div>
             ) : (

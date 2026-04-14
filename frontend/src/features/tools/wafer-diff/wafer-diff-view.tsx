@@ -22,13 +22,29 @@ import {
 } from "../wafer-overlay/wafer-overlay-utils";
 import { WaferMapSvg } from "../wafer-overlay/wafer-map-svg";
 
+type WaferDiffViewCache = {
+  diffMode: "strict" | "ignore-empty";
+  showSame: boolean;
+  showDiff: boolean;
+  maps: ParsedAoiWaferMap[];
+};
+
+const defaultWaferDiffViewCache: WaferDiffViewCache = {
+  diffMode: "strict",
+  showSame: true,
+  showDiff: true,
+  maps: [],
+};
+
+let waferDiffViewCache: WaferDiffViewCache = defaultWaferDiffViewCache;
+
 const WaferDiffView: React.FC = () => {
   useAppTitle({ title: "AOI Map Gap" });
 
-  const [diffMode, setDiffMode] = useState<"strict" | "ignore-empty">("strict");
-  const [showSame, setShowSame] = useState(true);
-  const [showDiff, setShowDiff] = useState(true);
-  const [maps, setMaps] = useState<ParsedAoiWaferMap[]>([]);
+  const [diffMode, setDiffMode] = useState<"strict" | "ignore-empty">(waferDiffViewCache.diffMode);
+  const [showSame, setShowSame] = useState(waferDiffViewCache.showSame);
+  const [showDiff, setShowDiff] = useState(waferDiffViewCache.showDiff);
+  const [maps, setMaps] = useState<ParsedAoiWaferMap[]>(waferDiffViewCache.maps);
   const [isLoading, setIsLoading] = useState(false);
   const [isRecomputing, setIsRecomputing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -38,8 +54,18 @@ const WaferDiffView: React.FC = () => {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [copyHint, setCopyHint] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
+  const [activeDiffCellKey, setActiveDiffCellKey] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
+
+  useEffect(() => {
+    waferDiffViewCache = {
+      diffMode,
+      showSame,
+      showDiff,
+      maps,
+    };
+  }, [diffMode, showSame, showDiff, maps]);
 
   const diffMap = useMemo(() => {
     if (maps.length !== 2) {
@@ -79,6 +105,8 @@ const WaferDiffView: React.FC = () => {
     const leftMap = maps[0];
     const rightMap = maps[1];
     const points: Array<{
+      serial: number;
+      cellKey: string;
       rowIndex: number;
       colIndex: number;
       row: number;
@@ -106,7 +134,10 @@ const WaferDiffView: React.FC = () => {
         const yFromBottom = diffMap.rowCount - 1 - rowIndex;
         const offsetXDie = colIndex - centerX;
         const offsetYDie = yFromBottom - centerY;
+        const serial = points.length + 1;
         points.push({
+          serial,
+          cellKey: `${rowIndex}-${colIndex}`,
           rowIndex,
           colIndex,
           row: rowIndex + 1,
@@ -164,6 +195,24 @@ const WaferDiffView: React.FC = () => {
     }
     return diffPoints;
   }, [diffPoints, showDiff]);
+
+  const diffPointLabelMap = useMemo(() => {
+    const labels: Record<string, string> = {};
+    visibleDiffPoints.slice(0, 999).forEach((point) => {
+      labels[point.cellKey] = `${point.serial}`;
+    });
+    return labels;
+  }, [visibleDiffPoints]);
+
+  useEffect(() => {
+    if (!activeDiffCellKey) {
+      return;
+    }
+    if (diffPointLabelMap[activeDiffCellKey]) {
+      return;
+    }
+    setActiveDiffCellKey(null);
+  }, [activeDiffCellKey, diffPointLabelMap]);
 
   const filterTextFiles = (files: FileList | File[]): File[] => {
     return Array.from(files).filter((file) => file.name.toLowerCase().endsWith(".txt"));
@@ -226,6 +275,7 @@ const WaferDiffView: React.FC = () => {
 
   const handleRemove = (fileName: string) => {
     setMaps((prev) => prev.filter((map) => map.fileName !== fileName));
+    setActiveDiffCellKey(null);
     setNotice("");
     setError("");
     setCopyHint("");
@@ -233,6 +283,7 @@ const WaferDiffView: React.FC = () => {
 
   const handleClear = () => {
     setMaps([]);
+    setActiveDiffCellKey(null);
     setNotice("");
     setError("");
     setCopyHint("");
@@ -584,10 +635,13 @@ const WaferDiffView: React.FC = () => {
                   <span>Gap</span>
                 </button>
                 <div className="text-muted-foreground">白色=无Gap，蓝色=Gap点</div>
+                <div className="text-muted-foreground">蓝点编号与右侧 Gap 坐标列表对应</div>
               </div>
               <div className="relative min-h-0 flex-1">
                 <WaferMapSvg
                   map={visibleMap}
+                  cellLabels={diffPointLabelMap}
+                  highlightedCellKey={activeDiffCellKey}
                   palette={{
                     passFill: "var(--wafer-diff-same)",
                     failFill: "var(--wafer-diff-diff)",
@@ -655,13 +709,24 @@ const WaferDiffView: React.FC = () => {
                     <div className="text-muted-foreground">无 Gap 点</div>
                   ) : (
                     visibleDiffPoints.slice(0, 20).map((item) => (
-                      <div
+                      <button
                         key={`${item.rowIndex}-${item.colIndex}`}
-                        className="overflow-hidden text-ellipsis whitespace-nowrap font-mono text-foreground"
+                        type="button"
+                        onMouseEnter={() => setActiveDiffCellKey(item.cellKey)}
+                        onMouseLeave={() => setActiveDiffCellKey(null)}
+                        onFocus={() => setActiveDiffCellKey(item.cellKey)}
+                        onBlur={() => setActiveDiffCellKey(null)}
+                        onClick={() => setActiveDiffCellKey(item.cellKey)}
+                        className={cn(
+                          "block w-full overflow-hidden text-ellipsis whitespace-nowrap rounded px-1 py-0.5 text-left font-mono",
+                          activeDiffCellKey === item.cellKey
+                            ? "bg-chart-2/15 text-foreground"
+                            : "text-foreground hover:bg-muted",
+                        )}
                       >
-                        X{item.x} Y{item.y} d({item.offsetXMM.toFixed(2)}, {item.offsetYMM.toFixed(2)})mm:{" "}
-                        {item.leftState} {"->"} {item.rightState}
-                      </div>
+                        #{item.serial} X{item.x} Y{item.y} d({item.offsetXMM.toFixed(2)},{" "}
+                        {item.offsetYMM.toFixed(2)})mm: {item.leftState} {"->"} {item.rightState}
+                      </button>
                     ))
                   )}
                 </div>

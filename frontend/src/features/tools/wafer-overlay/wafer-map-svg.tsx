@@ -5,6 +5,9 @@ interface WaferMapSvgProps {
   map: ParsedAoiWaferMap;
   className?: string;
   palette?: WaferMapSvgPalette;
+  cellFillMap?: Record<string, string>;
+  cellLabels?: Record<string, string>;
+  highlightedCellKey?: string | null;
 }
 
 export interface WaferMapSvgPalette {
@@ -29,7 +32,14 @@ const DEFAULT_PALETTE: Required<WaferMapSvgPalette> = {
 const SIX_INCH_WAFER_DIAMETER_MM = 150;
 const SIX_INCH_WAFER_RADIUS_MM = SIX_INCH_WAFER_DIAMETER_MM / 2;
 
-export const WaferMapSvg: React.FC<WaferMapSvgProps> = ({ map, className, palette }) => {
+export const WaferMapSvg: React.FC<WaferMapSvgProps> = ({
+  map,
+  className,
+  palette,
+  cellFillMap,
+  cellLabels,
+  highlightedCellKey,
+}) => {
   const colors = { ...DEFAULT_PALETTE, ...palette };
   const paddingCell = 2;
   const mmPadding = 2;
@@ -99,7 +109,10 @@ export const WaferMapSvg: React.FC<WaferMapSvgProps> = ({ map, className, palett
             if (state === "empty") {
               return null;
             }
-            const fillColor = state === "pass" ? colors.passFill : colors.failFill;
+            const cellKey = `${rowIndex}-${colIndex}`;
+            const fillColor =
+              cellFillMap?.[cellKey] ?? (state === "pass" ? colors.passFill : colors.failFill);
+            const isHighlighted = highlightedCellKey === cellKey;
             return (
               <rect
                 key={`${rowIndex}-${colIndex}`}
@@ -108,12 +121,39 @@ export const WaferMapSvg: React.FC<WaferMapSvgProps> = ({ map, className, palett
                 width={cellW}
                 height={cellH}
                 fill={fillColor}
-                stroke={colors.borderStroke}
-                strokeWidth={0.04}
+                stroke={isHighlighted ? "var(--chart-2)" : colors.borderStroke}
+                strokeWidth={isHighlighted ? 0.2 : 0.04}
               />
             );
           }),
         )}
+
+        {cellLabels &&
+          Object.entries(cellLabels).map(([cellKey, label]) => {
+            const [row, col] = cellKey.split("-").map((v) => Number.parseInt(v, 10));
+            if (!Number.isFinite(row) || !Number.isFinite(col)) {
+              return null;
+            }
+            const x = padX + col * cellW + cellW / 2;
+            const y = padY + row * cellH + cellH / 2;
+            return (
+              <text
+                key={`label-${cellKey}`}
+                x={x}
+                y={y}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fill="#ffffff"
+                stroke="rgba(0,0,0,0.35)"
+                strokeWidth={0.08}
+                paintOrder="stroke"
+                fontWeight={700}
+                style={{ fontSize: `${Math.max(0.45, Math.min(cellW, cellH) * 0.55)}px` }}
+              >
+                {label}
+              </text>
+            );
+          })}
 
         <line
           x1={0}
