@@ -8,6 +8,14 @@ interface WaferMapSvgProps {
   cellFillMap?: Record<string, string>;
   cellLabels?: Record<string, string>;
   highlightedCellKey?: string | null;
+  cellMarkers?: Record<
+    string,
+    {
+      fill: string;
+      stroke?: string;
+      label?: string;
+    }
+  >;
 }
 
 export interface WaferMapSvgPalette {
@@ -39,6 +47,7 @@ export const WaferMapSvg: React.FC<WaferMapSvgProps> = ({
   cellFillMap,
   cellLabels,
   highlightedCellKey,
+  cellMarkers,
 }) => {
   const colors = { ...DEFAULT_PALETTE, ...palette };
   const paddingCell = 2;
@@ -152,6 +161,42 @@ export const WaferMapSvg: React.FC<WaferMapSvgProps> = ({
               >
                 {label}
               </text>
+            );
+          })}
+
+        {cellMarkers &&
+          Object.entries(cellMarkers).map(([cellKey, marker]) => {
+            const [row, col] = cellKey.split("-").map((v) => Number.parseInt(v, 10));
+            if (!Number.isFinite(row) || !Number.isFinite(col)) {
+              return null;
+            }
+            const x = padX + col * cellW + cellW / 2;
+            const y = padY + row * cellH + cellH / 2;
+            const r = Math.max(0.55, Math.min(cellW, cellH) * 0.42);
+            return (
+              <g key={`marker-${cellKey}`}>
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={r}
+                  fill={marker.fill}
+                  stroke={marker.stroke ?? "rgba(0,0,0,0.35)"}
+                  strokeWidth={0.12}
+                />
+                {marker.label ? (
+                  <text
+                    x={x}
+                    y={y}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fill="#ffffff"
+                    fontWeight={700}
+                    style={{ fontSize: `${Math.max(0.48, Math.min(cellW, cellH) * 0.52)}px` }}
+                  >
+                    {marker.label}
+                  </text>
+                ) : null}
+              </g>
             );
           })}
 

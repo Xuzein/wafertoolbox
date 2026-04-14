@@ -150,6 +150,16 @@ const WaferOverlayView: React.FC = () => {
     const rightColor = "#f59e0b";
     const bothColor = "#8b5cf6";
     const cellFillMap: Record<string, string> = {};
+    const cellMarkers: Record<
+      string,
+      {
+        fill: string;
+        label: string;
+      }
+    > = {};
+    const leftOnlyPoints: Array<{ x: number; y: number }> = [];
+    const rightOnlyPoints: Array<{ x: number; y: number }> = [];
+    const bothPoints: Array<{ x: number; y: number }> = [];
     let leftOnlyCount = 0;
     let rightOnlyCount = 0;
     let bothCount = 0;
@@ -164,12 +174,18 @@ const WaferOverlayView: React.FC = () => {
         const key = `${rowIndex}-${colIndex}`;
         if (leftFail && rightFail) {
           cellFillMap[key] = bothColor;
+          cellMarkers[key] = { fill: bothColor, label: "共" };
+          bothPoints.push({ x: colIndex + 1, y: rowIndex + 1 });
           bothCount += 1;
         } else if (leftFail) {
           cellFillMap[key] = leftColor;
+          cellMarkers[key] = { fill: leftColor, label: "1" };
+          leftOnlyPoints.push({ x: colIndex + 1, y: rowIndex + 1 });
           leftOnlyCount += 1;
         } else {
           cellFillMap[key] = rightColor;
+          cellMarkers[key] = { fill: rightColor, label: "2" };
+          rightOnlyPoints.push({ x: colIndex + 1, y: rowIndex + 1 });
           rightOnlyCount += 1;
         }
       }
@@ -183,6 +199,10 @@ const WaferOverlayView: React.FC = () => {
       rightOnlyCount,
       bothCount,
       cellFillMap,
+      cellMarkers,
+      leftOnlyPoints,
+      rightOnlyPoints,
+      bothPoints,
     };
   }, [maps, overlayMap]);
 
@@ -449,12 +469,14 @@ const WaferOverlayView: React.FC = () => {
                       />
                       共同缺陷 {overlayDiffHighlight.bothCount}
                     </div>
+                    <div className="text-muted-foreground">标记说明：1=图1，2=图2，共=共同缺陷</div>
                   </div>
                 )}
                 <div className="min-h-0 flex-1">
                   <WaferMapSvg
                     map={overlayMap}
                     cellFillMap={overlayDiffHighlight?.cellFillMap}
+                    cellMarkers={overlayDiffHighlight?.cellMarkers}
                   />
                 </div>
               </div>
@@ -470,6 +492,40 @@ const WaferOverlayView: React.FC = () => {
             {overlayMap ? (
               <div className="hide-scrollbar min-h-0 flex-1 overflow-auto pr-1">
                 <OverlaySummary map={overlayMap} fileCount={maps.length} />
+                {overlayDiffHighlight && (
+                  <div className="mt-3 rounded-lg border border-input bg-background p-3">
+                    <div className="text-xs text-muted-foreground">缺陷坐标（X,Y）</div>
+                    <div className="mt-2 space-y-1 text-xs">
+                      <div className="text-foreground">
+                        图1缺陷:{" "}
+                        {overlayDiffHighlight.leftOnlyPoints.length > 0
+                          ? overlayDiffHighlight.leftOnlyPoints
+                              .slice(0, 12)
+                              .map((p) => `(${p.x},${p.y})`)
+                              .join(" ")
+                          : "-"}
+                      </div>
+                      <div className="text-foreground">
+                        图2缺陷:{" "}
+                        {overlayDiffHighlight.rightOnlyPoints.length > 0
+                          ? overlayDiffHighlight.rightOnlyPoints
+                              .slice(0, 12)
+                              .map((p) => `(${p.x},${p.y})`)
+                              .join(" ")
+                          : "-"}
+                      </div>
+                      <div className="text-foreground">
+                        共同缺陷:{" "}
+                        {overlayDiffHighlight.bothPoints.length > 0
+                          ? overlayDiffHighlight.bothPoints
+                              .slice(0, 12)
+                              .map((p) => `(${p.x},${p.y})`)
+                              .join(" ")
+                          : "-"}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
