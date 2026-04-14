@@ -24,10 +24,12 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-// SetAppearance sets the native window appearance to match the frontend theme.
+// SetAppearance sets the native window appearance to match the frontend theme
+// and persists the choice so the correct glass style is used at next launch.
 // theme: "dark" -> NSAppearanceNameDarkAqua, "light" -> NSAppearanceNameAqua, "system" -> DefaultAppearance
 func (a *App) SetAppearance(theme string) {
 	setMacAppearance(theme)
+	_ = SaveConfig(AppConfig{Theme: theme})
 }
 
 type WaferPoint struct {
