@@ -487,7 +487,6 @@ const WaferOverlayView: React.FC = () => {
                       />
                       共同缺陷 {overlayDiffHighlight.bothCount}
                     </div>
-                    <div className="text-muted-foreground">标记说明：1=图1，2=图2，共=共同缺陷</div>
                   </div>
                 )}
                 <div className="min-h-0 flex-1">
