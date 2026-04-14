@@ -141,8 +141,23 @@ const WaferOverlayView: React.FC = () => {
   const [overlayPreviewScale, setOverlayPreviewScale] = useState(1.75);
   const [overlayPreviewImageDataURL, setOverlayPreviewImageDataURL] = useState<string>("");
   const [isOverlayPreviewRendering, setIsOverlayPreviewRendering] = useState(false);
+  const [isOverlayPreviewPanning, setIsOverlayPreviewPanning] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounter = useRef(0);
+  const overlayPreviewScrollRef = useRef<HTMLDivElement | null>(null);
+  const overlayPreviewPanRef = useRef<{
+    active: boolean;
+    startClientX: number;
+    startClientY: number;
+    startScrollLeft: number;
+    startScrollTop: number;
+  }>({
+    active: false,
+    startClientX: 0,
+    startClientY: 0,
+    startScrollLeft: 0,
+    startScrollTop: 0,
+  });
   const [draggingFileName, setDraggingFileName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -423,6 +438,48 @@ const WaferOverlayView: React.FC = () => {
       const next = Math.round((current + delta) / OVERLAY_PREVIEW_STEP) * OVERLAY_PREVIEW_STEP;
       return Math.min(OVERLAY_PREVIEW_MAX_SCALE, Math.max(OVERLAY_PREVIEW_MIN_SCALE, next));
     });
+  };
+
+  const handleOverlayPreviewMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || !overlayPreviewImageDataURL) {
+      return;
+    }
+    const container = overlayPreviewScrollRef.current;
+    if (!container) {
+      return;
+    }
+    overlayPreviewPanRef.current = {
+      active: true,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startScrollLeft: container.scrollLeft,
+      startScrollTop: container.scrollTop,
+    };
+    setIsOverlayPreviewPanning(true);
+    event.preventDefault();
+  };
+
+  const handleOverlayPreviewMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!overlayPreviewPanRef.current.active) {
+      return;
+    }
+    const container = overlayPreviewScrollRef.current;
+    if (!container) {
+      return;
+    }
+    const dx = event.clientX - overlayPreviewPanRef.current.startClientX;
+    const dy = event.clientY - overlayPreviewPanRef.current.startClientY;
+    container.scrollLeft = overlayPreviewPanRef.current.startScrollLeft - dx;
+    container.scrollTop = overlayPreviewPanRef.current.startScrollTop - dy;
+    event.preventDefault();
+  };
+
+  const stopOverlayPreviewPanning = () => {
+    if (!overlayPreviewPanRef.current.active) {
+      return;
+    }
+    overlayPreviewPanRef.current.active = false;
+    setIsOverlayPreviewPanning(false);
   };
 
   return (
@@ -764,7 +821,16 @@ const WaferOverlayView: React.FC = () => {
             </div>
           </DialogHeader>
 
-          <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-input bg-muted/25 p-3">
+          <div
+            ref={overlayPreviewScrollRef}
+            className={`min-h-0 flex-1 overflow-auto rounded-lg border border-input bg-muted/25 p-3 ${
+              isOverlayPreviewPanning ? "cursor-grabbing select-none" : "cursor-grab"
+            }`}
+            onMouseDown={handleOverlayPreviewMouseDown}
+            onMouseMove={handleOverlayPreviewMouseMove}
+            onMouseUp={stopOverlayPreviewPanning}
+            onMouseLeave={stopOverlayPreviewPanning}
+          >
             {overlayMap ? (
               overlayPreviewImageDataURL ? (
                 <div
