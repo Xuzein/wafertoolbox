@@ -304,7 +304,15 @@ const WaferOverlayView: React.FC = () => {
     void handleFilesDrop(files);
   };
 
-  const handleDownload = async (map: ParsedAoiWaferMap, fileName: string, maxImageSize: number) => {
+  const handleDownload = async (
+    map: ParsedAoiWaferMap,
+    fileName: string,
+    maxImageSize: number,
+    options?: {
+      pointColorOverrides?: Record<string, string>;
+      preferWailsExporter?: boolean;
+    },
+  ) => {
     if (isDownloading) {
       return;
     }
@@ -312,7 +320,12 @@ const WaferOverlayView: React.FC = () => {
     setError("");
     setCopyHint("");
     try {
-      const savedPath = await downloadWaferMapPng(map, { fileName, maxImageSize });
+      const savedPath = await downloadWaferMapPng(map, {
+        fileName,
+        maxImageSize,
+        pointColorOverrides: options?.pointColorOverrides,
+        preferWailsExporter: options?.preferWailsExporter ?? true,
+      });
       if (savedPath) {
         setNotice(`已保存: ${savedPath}`);
         setSavedPath(savedPath);
@@ -434,7 +447,12 @@ const WaferOverlayView: React.FC = () => {
                   className="h-7 w-7"
                   title="下载高清图"
                   disabled={isDownloading}
-                  onClick={() => void handleDownload(overlayMap, `overlay-${overlayMap.waferId}.png`, 2800)}
+                  onClick={() =>
+                    void handleDownload(overlayMap, `overlay-${overlayMap.waferId}.png`, 2800, {
+                      pointColorOverrides: overlayDiffHighlight?.cellFillMap,
+                      preferWailsExporter: overlayDiffHighlight ? false : true,
+                    })
+                  }
                 >
                   {isDownloading ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -317,6 +317,7 @@ interface ExportPngOptions {
   axisColor?: string;
   circleColor?: string;
   centerColor?: string;
+  pointColorOverrides?: Record<string, string>;
 }
 
 interface WailsBridge {
@@ -365,6 +366,7 @@ export const downloadWaferMapPng = async (
     axisColor = "#737373",
     circleColor = "#111111",
     centerColor = "#000000",
+    pointColorOverrides,
   } = options;
   const bridge = window as unknown as WailsBridge;
   const saveWaferPNG = bridge.go?.main?.App?.SaveWaferMapPNG;
@@ -467,7 +469,10 @@ export const downloadWaferMapPng = async (
       }
       const x = (colIndex + paddingCell) * cellW;
       const y = (rowIndex + paddingCell) * cellH;
-      ctx.fillStyle = state === "pass" ? passColor : failColor;
+      const cellKey = `${rowIndex}-${colIndex}`;
+      ctx.fillStyle =
+        pointColorOverrides?.[cellKey] ??
+        (state === "pass" ? passColor : failColor);
       ctx.fillRect(x, y, cellW, cellH);
       ctx.strokeStyle = borderColor;
       ctx.lineWidth = Math.max(1, Math.floor(baseScale * 0.03));
