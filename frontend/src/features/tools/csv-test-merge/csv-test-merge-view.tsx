@@ -231,7 +231,11 @@ const CsvTestMergeView: React.FC = () => {
 
       <div className="rounded-lg border border-input bg-card p-4">
         <div className="flex flex-wrap items-center gap-3">
-          <Button size="sm" onClick={() => fileInputRef.current?.click()}>
+          <Button
+            size="sm"
+            className="bg-chart-2 text-white hover:bg-chart-2/90"
+            onClick={() => fileInputRef.current?.click()}
+          >
             上传 CSV
           </Button>
           <input
@@ -310,7 +314,7 @@ const CsvTestMergeView: React.FC = () => {
           )}
 
           <Button
-            className="mt-4 w-full"
+            className="mt-4 w-full bg-chart-2 text-white hover:bg-chart-2/90"
             onClick={() => void handleExport()}
             disabled={!selectedTestItem || selectedRows.length === 0 || isExporting}
           >
@@ -392,7 +396,7 @@ const CsvTestMergeView: React.FC = () => {
               复制路径
             </Button>
             <DialogClose asChild>
-              <Button>我知道了</Button>
+              <Button className="bg-chart-2 text-white hover:bg-chart-2/90">我知道了</Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>
