@@ -81,12 +81,12 @@ const SettingsPopover = ({
 
 // Base nav item styles
 const navItemClasses =
-  "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground";
+  "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-colors";
 
 const activeNavClasses =
   "bg-chart-2 text-white font-medium shadow-sm";
 
-const inactiveNavClasses = "text-sidebar-foreground/80";
+const inactiveNavClasses = "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground";
 
 const getSidebarIconTheme = (toolId: string) => {
   switch (toolId) {
