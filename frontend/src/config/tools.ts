@@ -34,4 +34,12 @@ export const tools: ToolItem[] = [
     path: "/tools/csv-test-merge",
     category: "CP工具",
   },
+  {
+    id: "ibe-thickness",
+    name: "Wafer Topography Studio",
+    description: "Build premium 2D heat maps and interactive 3D surface views from IBE X/Y/Z CSV data.",
+    icon: "tabler--temperature-plus",
+    path: "/tools/ibe-thickness",
+    category: "Wafer工具",
+  },
 ];

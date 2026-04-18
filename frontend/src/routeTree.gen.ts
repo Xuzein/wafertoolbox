@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ToolsWaferOverlayRouteImport } from './routes/tools.wafer-overlay'
+import { Route as ToolsIbeThicknessRouteImport } from './routes/tools.ibe-thickness'
 import { Route as ToolsCsvTestMergeRouteImport } from './routes/tools.csv-test-merge'
 import { Route as ToolsAoiMapDiffRouteImport } from './routes/tools.aoi-map-diff'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const ToolsWaferOverlayRoute = ToolsWaferOverlayRouteImport.update({
   id: '/tools/wafer-overlay',
   path: '/tools/wafer-overlay',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsIbeThicknessRoute = ToolsIbeThicknessRouteImport.update({
+  id: '/tools/ibe-thickness',
+  path: '/tools/ibe-thickness',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsCsvTestMergeRoute = ToolsCsvTestMergeRouteImport.update({
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/tools/aoi-map-diff': typeof ToolsAoiMapDiffRoute
   '/tools/csv-test-merge': typeof ToolsCsvTestMergeRoute
+  '/tools/ibe-thickness': typeof ToolsIbeThicknessRoute
   '/tools/wafer-overlay': typeof ToolsWaferOverlayRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/tools/aoi-map-diff': typeof ToolsAoiMapDiffRoute
   '/tools/csv-test-merge': typeof ToolsCsvTestMergeRoute
+  '/tools/ibe-thickness': typeof ToolsIbeThicknessRoute
   '/tools/wafer-overlay': typeof ToolsWaferOverlayRoute
 }
 export interface FileRoutesById {
@@ -52,6 +60,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/tools/aoi-map-diff': typeof ToolsAoiMapDiffRoute
   '/tools/csv-test-merge': typeof ToolsCsvTestMergeRoute
+  '/tools/ibe-thickness': typeof ToolsIbeThicknessRoute
   '/tools/wafer-overlay': typeof ToolsWaferOverlayRoute
 }
 export interface FileRouteTypes {
@@ -60,18 +69,21 @@ export interface FileRouteTypes {
     | '/'
     | '/tools/aoi-map-diff'
     | '/tools/csv-test-merge'
+    | '/tools/ibe-thickness'
     | '/tools/wafer-overlay'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/tools/aoi-map-diff'
     | '/tools/csv-test-merge'
+    | '/tools/ibe-thickness'
     | '/tools/wafer-overlay'
   id:
     | '__root__'
     | '/'
     | '/tools/aoi-map-diff'
     | '/tools/csv-test-merge'
+    | '/tools/ibe-thickness'
     | '/tools/wafer-overlay'
   fileRoutesById: FileRoutesById
 }
@@ -79,6 +91,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ToolsAoiMapDiffRoute: typeof ToolsAoiMapDiffRoute
   ToolsCsvTestMergeRoute: typeof ToolsCsvTestMergeRoute
+  ToolsIbeThicknessRoute: typeof ToolsIbeThicknessRoute
   ToolsWaferOverlayRoute: typeof ToolsWaferOverlayRoute
 }
 
@@ -96,6 +109,13 @@ declare module '@tanstack/react-router' {
       path: '/tools/wafer-overlay'
       fullPath: '/tools/wafer-overlay'
       preLoaderRoute: typeof ToolsWaferOverlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tools/ibe-thickness': {
+      id: '/tools/ibe-thickness'
+      path: '/tools/ibe-thickness'
+      fullPath: '/tools/ibe-thickness'
+      preLoaderRoute: typeof ToolsIbeThicknessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools/csv-test-merge': {
@@ -119,6 +139,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ToolsAoiMapDiffRoute: ToolsAoiMapDiffRoute,
   ToolsCsvTestMergeRoute: ToolsCsvTestMergeRoute,
+  ToolsIbeThicknessRoute: ToolsIbeThicknessRoute,
   ToolsWaferOverlayRoute: ToolsWaferOverlayRoute,
 }
 export const routeTree = rootRouteImport

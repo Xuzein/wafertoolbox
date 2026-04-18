@@ -6,6 +6,9 @@
 - **包管理**: pnpm (必须使用 pnpm)
 - **路由**: TanStack Router (强类型路由)
 - **UI 体系**: shadcn/ui + Tailwind CSS (严格变量驱动)
+- **项目仓库地址**:
+  - SSH: `git@github.com:Xuzein/wafertoolbox.git`
+  - HTTPS: `https://github.com/Xuzein/wafertoolbox.git`
 
 ## 编码准则
 
@@ -43,3 +46,4 @@
 1. **变量检查**: 生成 UI 代码前，先确认 `tailwind.config.js` 的 `colors` 配置。
 2. **同步类型**: 每次修改 Go 结构体后，确保 `wails dev` 正在运行以更新前端 TS 类型。
 3. **高保真实现**: 如果设计稿有特殊阴影或滤镜，请在 `tailwind.config.js` 的 `extend` 中定义，不要直接写 inline style。
+4. **主动提交代码**: 每一次代码变动完成后都要主动执行 Git 提交（`git add` + `git commit`）。
