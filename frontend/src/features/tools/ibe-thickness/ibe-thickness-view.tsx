@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppTitle } from "@/components/layout/app-title-context";
 import { Button } from "@/components/ui/button";
-import { FileDropZone } from "@/components/ui/file-drop-zone";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { RotateCcw, Upload } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 
 type ThicknessPoint = {
   x: number;
@@ -25,6 +25,7 @@ type Bounds = {
 };
 
 type ParsedIbeMap = {
+  id: string;
   fileName: string;
   points: ThicknessPoint[];
   bounds: Bounds;
@@ -50,6 +51,8 @@ type Camera = {
 const EPSILON = 1e-6;
 const GRID_2D = 170;
 const GRID_3D = 64;
+const MAX_2D_PER_PAGE = 4;
+const DEFAULT_CAMERA: Camera = { rotX: -0.82, rotY: 0.78, zoom: 1.18 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -156,6 +159,7 @@ const parseIbeCsv = async (file: File): Promise<ParsedIbeMap> => {
   const maxZ = Math.max(...points.map((point) => point.z));
 
   return {
+    id: `${file.name}-${file.size}-${file.lastModified}`,
     fileName: file.name,
     points,
     bounds: {
@@ -244,7 +248,11 @@ const ratioOfZ = (z: number, minZ: number, maxZ: number) => {
   return clamp((z - minZ) / (maxZ - minZ), 0, 1);
 };
 
-const Heatmap2D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> = ({ map, grid }) => {
+const Heatmap2DPanel: React.FC<{
+  map: ParsedIbeMap | null;
+  grid: HeatGrid | null;
+  showPoints: boolean;
+}> = ({ map, grid, showPoints }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -267,9 +275,9 @@ const Heatmap2D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     ctx.clearRect(0, 0, width, height);
 
     const background = ctx.createLinearGradient(0, 0, width, height);
-    background.addColorStop(0, "#e7f8f1");
-    background.addColorStop(0.5, "#f5f8eb");
-    background.addColorStop(1, "#f9ecdf");
+    background.addColorStop(0, "#f7fbff");
+    background.addColorStop(0.55, "#fdfefd");
+    background.addColorStop(1, "#fff9f1");
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, width, height);
 
@@ -277,7 +285,7 @@ const Heatmap2D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
       ctx.fillStyle = "rgba(71,85,105,0.92)";
       ctx.font = "600 14px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("Upload IBE CSV to generate a 2D heat map", width / 2, height / 2);
+      ctx.fillText("拖拽 CSV 文件到页面后生成 2D 图", width / 2, height / 2);
       return;
     }
 
@@ -317,13 +325,6 @@ const Heatmap2D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     ctx.drawImage(offscreen, padLeft, padTop, plotW, plotH);
     ctx.restore();
 
-    const waferRadius = Math.min(plotW, plotH) * 0.48;
-    ctx.strokeStyle = "rgba(105, 120, 100, 0.44)";
-    ctx.lineWidth = 1.1;
-    ctx.beginPath();
-    ctx.arc(padLeft + plotW / 2, padTop + plotH / 2, waferRadius, 0, Math.PI * 2);
-    ctx.stroke();
-
     for (let t = 0; t <= 7; t += 1) {
       const y = padTop + (plotH / 7) * t;
       ctx.strokeStyle = "rgba(120, 130, 150, 0.2)";
@@ -346,21 +347,23 @@ const Heatmap2D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     const xToPx = (x: number) => padLeft + ((x - map.bounds.minX) / map.bounds.spanX) * plotW;
     const yToPx = (y: number) => padTop + ((map.bounds.maxY - y) / map.bounds.spanY) * plotH;
 
-    map.points.forEach((point) => {
-      const ratio = ratioOfZ(point.z, map.bounds.minZ, map.bounds.maxZ);
-      const color = jetColor(ratio);
-      const px = xToPx(point.x);
-      const py = yToPx(point.y);
-      ctx.beginPath();
-      ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.95)`;
-      ctx.arc(px, py, 4.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.strokeStyle = "rgba(255,255,255,0.75)";
-      ctx.lineWidth = 0.8;
-      ctx.arc(px, py, 4.2, 0, Math.PI * 2);
-      ctx.stroke();
-    });
+    if (showPoints) {
+      map.points.forEach((point) => {
+        const ratio = ratioOfZ(point.z, map.bounds.minZ, map.bounds.maxZ);
+        const color = jetColor(ratio);
+        const px = xToPx(point.x);
+        const py = yToPx(point.y);
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.95)`;
+        ctx.arc(px, py, 3.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(255,255,255,0.75)";
+        ctx.lineWidth = 0.75;
+        ctx.arc(px, py, 3.4, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+    }
 
     ctx.strokeStyle = "rgba(40, 53, 75, 0.55)";
     ctx.lineWidth = 1.1;
@@ -372,17 +375,14 @@ const Heatmap2D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     ctx.fillText(`${grid.max.toFixed(4)} max`, padLeft + 6, padTop + 14);
     ctx.textAlign = "right";
     ctx.fillText(`${grid.min.toFixed(4)} min`, padLeft + plotW - 6, padTop + 14);
-  }, [map, grid]);
+  }, [map, grid, showPoints]);
 
   return (
     <div className="rounded-2xl border border-input bg-card/85 p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">2D Heat Map</h3>
-          <p className="text-xs text-muted-foreground">Wafer thickness contour style</p>
-        </div>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="truncate text-sm font-semibold text-foreground">{map?.fileName ?? "2D Heat Map"}</h3>
       </div>
-      <canvas ref={canvasRef} className="h-[430px] w-full rounded-xl border border-input/80 bg-background/60" />
+      <canvas ref={canvasRef} className="h-[360px] w-full rounded-xl border border-input/80 bg-background/60" />
     </div>
   );
 };
@@ -390,7 +390,7 @@ const Heatmap2D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
 const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> = ({ map, grid }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef({ active: false, x: 0, y: 0 });
-  const [camera, setCamera] = useState<Camera>({ rotX: -0.92, rotY: 0.72, zoom: 1.15 });
+  const [camera, setCamera] = useState<Camera>(DEFAULT_CAMERA);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -412,9 +412,9 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     ctx.clearRect(0, 0, width, height);
 
     const bg = ctx.createLinearGradient(0, 0, width, height);
-    bg.addColorStop(0, "#e6f0ff");
-    bg.addColorStop(0.45, "#f4f8ff");
-    bg.addColorStop(1, "#edf6ff");
+    bg.addColorStop(0, "#f1f6ff");
+    bg.addColorStop(0.5, "#f8fbff");
+    bg.addColorStop(1, "#f3f9ff");
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, width, height);
 
@@ -422,14 +422,14 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
       ctx.fillStyle = "rgba(71,85,105,0.9)";
       ctx.font = "600 14px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("Upload IBE CSV to generate a 3D surface", width / 2, height / 2);
+      ctx.fillText("拖拽 CSV 文件到页面后生成 3D 小山坡", width / 2, height / 2);
       return;
     }
 
     const centerX = width * 0.5;
-    const centerY = height * 0.52;
-    const scaleXY = Math.min(width, height) * 0.33 * camera.zoom;
-    const zScale = Math.min(width, height) * 0.25;
+    const centerY = height * 0.56;
+    const scaleXY = Math.min(width, height) * 0.36 * camera.zoom;
+    const zScale = Math.min(width, height) * 0.21;
 
     const project = (x: number, y: number, z: number) => {
       const cosY = Math.cos(camera.rotY);
@@ -443,8 +443,8 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
       const ry = y * cosX - rz * sinX;
       const rz2 = y * sinX + rz * cosX;
 
-      const dist = 3.3;
-      const perspective = dist / (dist + rz2 + 1.6);
+      const dist = 3.7;
+      const perspective = dist / (dist + rz2 + 1.45);
 
       return {
         x: centerX + rx * scaleXY * perspective,
@@ -465,6 +465,17 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
 
     const valueAt = (gx: number, gy: number) => grid.values[gy * grid.width + gx];
 
+    const baseA = project(-0.55, 0.55, 0);
+    const baseB = project(0.55, 0.55, 0);
+    const baseC = project(0.55, -0.55, 0);
+    const baseD = project(-0.55, -0.55, 0);
+
+    const shadow = ctx.createRadialGradient(centerX, centerY + 28, 10, centerX, centerY + 28, Math.min(width, height) * 0.42);
+    shadow.addColorStop(0, "rgba(15, 23, 42, 0.18)");
+    shadow.addColorStop(1, "rgba(15, 23, 42, 0)");
+    ctx.fillStyle = shadow;
+    ctx.fillRect(0, 0, width, height);
+
     for (let gy = 0; gy < grid.height - 1; gy += 1) {
       for (let gx = 0; gx < grid.width - 1; gx += 1) {
         const v00 = valueAt(gx, gy);
@@ -480,10 +491,10 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
         const ny0 = gy / (grid.height - 1) - 0.5;
         const ny1 = (gy + 1) / (grid.height - 1) - 0.5;
 
-        const z00 = ratioOfZ(v00, grid.min, grid.max) * zScale;
-        const z10 = ratioOfZ(v10, grid.min, grid.max) * zScale;
-        const z01 = ratioOfZ(v01, grid.min, grid.max) * zScale;
-        const z11 = ratioOfZ(v11, grid.min, grid.max) * zScale;
+        const z00 = (ratioOfZ(v00, grid.min, grid.max) - 0.1) * zScale;
+        const z10 = (ratioOfZ(v10, grid.min, grid.max) - 0.1) * zScale;
+        const z01 = (ratioOfZ(v01, grid.min, grid.max) - 0.1) * zScale;
+        const z11 = (ratioOfZ(v11, grid.min, grid.max) - 0.1) * zScale;
 
         const p0 = project(nx0, -ny0, z00 / zScale);
         const p1 = project(nx1, -ny0, z10 / zScale);
@@ -498,7 +509,7 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
         const vx = p3.x - p0.x;
         const vy = p3.y - p0.y;
         const cross = ux * vy - uy * vx;
-        const shade = clamp(0.78 + Math.sign(cross) * 0.14, 0.55, 1.05);
+        const shade = clamp(0.8 + Math.sign(cross) * 0.13, 0.58, 1.02);
 
         cells.push({
           p0,
@@ -515,14 +526,8 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     cells.sort((a, b) => a.depth - b.depth);
 
     ctx.save();
-    ctx.strokeStyle = "rgba(35,57,95,0.34)";
+    ctx.strokeStyle = "rgba(28, 55, 104, 0.38)";
     ctx.lineWidth = 1;
-
-    const baseA = project(-0.55, 0.55, 0);
-    const baseB = project(0.55, 0.55, 0);
-    const baseC = project(0.55, -0.55, 0);
-    const baseD = project(-0.55, -0.55, 0);
-
     ctx.beginPath();
     ctx.moveTo(baseA.x, baseA.y);
     ctx.lineTo(baseB.x, baseB.y);
@@ -535,7 +540,7 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
       const rr = Math.round(cell.color.r * cell.shade);
       const gg = Math.round(cell.color.g * cell.shade);
       const bb = Math.round(cell.color.b * cell.shade);
-      ctx.fillStyle = `rgba(${rr}, ${gg}, ${bb}, 0.92)`;
+      ctx.fillStyle = `rgba(${rr}, ${gg}, ${bb}, 0.93)`;
       ctx.beginPath();
       ctx.moveTo(cell.p0.x, cell.p0.y);
       ctx.lineTo(cell.p1.x, cell.p1.y);
@@ -552,7 +557,7 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     ctx.fillText("X", baseC.x + 10, baseC.y + 4);
     ctx.fillText("Y", baseD.x - 14, baseD.y + 14);
     ctx.fillText("Z", baseA.x - 12, baseA.y - 10);
-    ctx.fillText("Drag to rotate, wheel to zoom", 16, 24);
+    ctx.fillText("拖拽旋转，滚轮缩放", 16, 24);
   }, [camera, map, grid]);
 
   return (
@@ -560,15 +565,9 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-foreground">3D Surface</h3>
-          <p className="text-xs text-muted-foreground">Interactive topography view</p>
+          <p className="text-xs text-muted-foreground">{map?.fileName ?? "无可展示文件"}</p>
         </div>
-        <Button
-          size="sm"
-          type="button"
-          variant="outline"
-          className="h-8"
-          onClick={() => setCamera({ rotX: -0.92, rotY: 0.72, zoom: 1.15 })}
-        >
+        <Button size="sm" type="button" variant="outline" className="h-8" onClick={() => setCamera(DEFAULT_CAMERA)}>
           <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
           Reset
         </Button>
@@ -589,8 +588,8 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
 
           setCamera((prev) => ({
             ...prev,
-            rotY: prev.rotY + dx * 0.012,
-            rotX: clamp(prev.rotX + dy * 0.01, -1.45, -0.08),
+            rotY: clamp(prev.rotY + dx * 0.006, 0.24, 1.32),
+            rotX: clamp(prev.rotX + dy * 0.006, -1.12, -0.38),
           }));
         }}
         onMouseUp={() => {
@@ -603,7 +602,7 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
           event.preventDefault();
           setCamera((prev) => ({
             ...prev,
-            zoom: clamp(prev.zoom + (event.deltaY > 0 ? -0.06 : 0.06), 0.72, 2.2),
+            zoom: clamp(prev.zoom + (event.deltaY > 0 ? -0.05 : 0.05), 0.86, 1.68),
           }));
         }}
       />
@@ -611,98 +610,291 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
   );
 };
 
+const mergeMaps = (prev: ParsedIbeMap[], incoming: ParsedIbeMap[]) => {
+  const merged = new Map(prev.map((map) => [map.id, map]));
+  incoming.forEach((map) => {
+    merged.set(map.id, map);
+  });
+  return Array.from(merged.values());
+};
+
 const IbeThicknessView: React.FC = () => {
   useAppTitle({ title: "Wafer Topography Studio" });
 
-  const [map, setMap] = useState<ParsedIbeMap | null>(null);
+  const [maps, setMaps] = useState<ParsedIbeMap[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showPoints, setShowPoints] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [draggingGlobal, setDraggingGlobal] = useState(false);
+  const [activePage, setActivePage] = useState(1);
+  const dragDepthRef = useRef(0);
 
-  const grid2D = useMemo(() => (map ? buildHeatGrid(map, GRID_2D) : null), [map]);
-  const grid3D = useMemo(() => (map ? buildHeatGrid(map, GRID_3D) : null), [map]);
+  const selectedMaps = useMemo(
+    () => selectedIds.map((id) => maps.find((map) => map.id === id)).filter((map): map is ParsedIbeMap => Boolean(map)),
+    [maps, selectedIds],
+  );
 
-  const handleFile = async (file: File) => {
+  const pageCount = Math.max(1, Math.ceil(selectedMaps.length / MAX_2D_PER_PAGE));
+
+  const pagedMaps = useMemo(() => {
+    const begin = (activePage - 1) * MAX_2D_PER_PAGE;
+    return selectedMaps.slice(begin, begin + MAX_2D_PER_PAGE);
+  }, [activePage, selectedMaps]);
+
+  const grid2DMap = useMemo(() => {
+    const entries = new Map<string, HeatGrid>();
+    pagedMaps.forEach((map) => {
+      entries.set(map.id, buildHeatGrid(map, GRID_2D));
+    });
+    return entries;
+  }, [pagedMaps]);
+
+  const primaryMap = selectedMaps[0] ?? null;
+  const grid3D = useMemo(() => (primaryMap ? buildHeatGrid(primaryMap, GRID_3D) : null), [primaryMap]);
+
+  useEffect(() => {
+    setActivePage((prev) => Math.min(Math.max(prev, 1), pageCount));
+  }, [pageCount]);
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const available = new Set(maps.map((map) => map.id));
+      const kept = prev.filter((id) => available.has(id));
+      if (kept.length > 0) {
+        return kept;
+      }
+      if (maps.length > 0) {
+        return [maps[0].id];
+      }
+      return [];
+    });
+  }, [maps]);
+
+  const handleFilesDrop = async (files: File[]) => {
+    const csvFiles = files.filter((file) => file.name.toLowerCase().endsWith(".csv"));
+    if (csvFiles.length === 0) {
+      setError("仅支持 CSV 文件上传。");
+      return;
+    }
+
     setLoading(true);
     setError("");
-    try {
-      setMap(await parseIbeCsv(file));
-    } catch (err) {
-      setMap(null);
-      setError(err instanceof Error ? err.message : "Failed to parse CSV file.");
-    } finally {
-      setLoading(false);
+
+    const results = await Promise.allSettled(csvFiles.map((file) => parseIbeCsv(file)));
+    const successMaps = results
+      .filter((result): result is PromiseFulfilledResult<ParsedIbeMap> => result.status === "fulfilled")
+      .map((result) => result.value);
+    const failedMessages = results
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .map((result) => (result.reason instanceof Error ? result.reason.message : "Failed to parse CSV file."));
+
+    if (successMaps.length > 0) {
+      setMaps((prev) => mergeMaps(prev, successMaps));
     }
+
+    if (failedMessages.length > 0) {
+      setError(failedMessages.join("; "));
+    }
+
+    setLoading(false);
   };
 
+  useEffect(() => {
+    const hasFilePayload = (event: DragEvent) => {
+      const types = Array.from(event.dataTransfer?.types ?? []);
+      return types.includes("Files");
+    };
+
+    const handleDragEnter = (event: DragEvent) => {
+      if (!hasFilePayload(event)) {
+        return;
+      }
+      event.preventDefault();
+      dragDepthRef.current += 1;
+      setDraggingGlobal(true);
+    };
+
+    const handleDragOver = (event: DragEvent) => {
+      if (!hasFilePayload(event)) {
+        return;
+      }
+      event.preventDefault();
+    };
+
+    const handleDragLeave = (event: DragEvent) => {
+      if (!hasFilePayload(event)) {
+        return;
+      }
+      event.preventDefault();
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+      if (dragDepthRef.current === 0) {
+        setDraggingGlobal(false);
+      }
+    };
+
+    const handleDrop = (event: DragEvent) => {
+      if (!hasFilePayload(event)) {
+        return;
+      }
+      event.preventDefault();
+      dragDepthRef.current = 0;
+      setDraggingGlobal(false);
+      const files = Array.from(event.dataTransfer?.files ?? []);
+      if (files.length > 0) {
+        void handleFilesDrop(files);
+      }
+    };
+
+    window.addEventListener("dragenter", handleDragEnter);
+    window.addEventListener("dragover", handleDragOver);
+    window.addEventListener("dragleave", handleDragLeave);
+    window.addEventListener("drop", handleDrop);
+
+    return () => {
+      window.removeEventListener("dragenter", handleDragEnter);
+      window.removeEventListener("dragover", handleDragOver);
+      window.removeEventListener("dragleave", handleDragLeave);
+      window.removeEventListener("drop", handleDrop);
+    };
+  }, []);
+
   return (
-    <div className="relative mx-auto flex h-full w-full max-w-[1450px] flex-col gap-5 p-6">
-      <div className="rounded-2xl border border-emerald-200/70 bg-gradient-to-r from-[#eefaf4] via-[#f8fbf2] to-[#fdf2e7] p-5 shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold tracking-[0.18em] text-emerald-700">WAFER THICKNESS ANALYTICS</p>
-            <h1 className="mt-1 text-[28px] font-semibold text-slate-800">Wafer Topography Studio</h1>
-            <p className="mt-1 text-sm text-slate-600">2D heat map and interactive 3D surface reconstructed from IBE X/Y/Z data.</p>
-          </div>
-          <div className="rounded-xl border border-emerald-200 bg-white/80 px-4 py-2 text-xs text-slate-600">
-            Recommended sample: /Users/xuzein/Documents/tmp/P001742-12.csv
-          </div>
-        </div>
-      </div>
+    <div className="relative mx-auto flex h-full w-full max-w-[1500px] flex-col gap-5 p-6">
+      {draggingGlobal && (
+        <div className="pointer-events-none absolute inset-4 z-20 rounded-2xl border-2 border-dashed border-primary bg-primary/10" />
+      )}
 
       <div className="grid h-full min-h-0 grid-cols-1 gap-5 xl:grid-cols-[320px_1fr]">
         <div className="flex min-h-0 flex-col gap-4">
           <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">Data Input</h2>
-              <Upload className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <FileDropZone
-              accept={[".csv"]}
-              maxFiles={1}
-              uploadedFiles={map ? [{ name: map.fileName }] : []}
-              onFilesDrop={(files) => {
-                if (files[0]) {
-                  void handleFile(files[0]);
-                }
-              }}
-              className={cn("cursor-pointer", loading && "pointer-events-none opacity-75")}
-            />
+            <h2 className="text-sm font-semibold text-foreground">Data Input</h2>
+            <p className="mt-2 text-xs text-muted-foreground">将 CSV 文件拖拽到页面任意位置即可上传，支持一次拖入多个文件。</p>
             {loading && <p className="mt-2 text-xs text-muted-foreground">Parsing file...</p>}
             {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
           </div>
 
           <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground">2D Options</h2>
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox checked={showPoints} onCheckedChange={(checked) => setShowPoints(Boolean(checked))} />
+                显示小点
+              </label>
+            </div>
+            {maps.length === 0 && <p className="text-xs text-muted-foreground">暂无文件，先拖拽 CSV 文件到页面。</p>}
+            {maps.length > 0 && (
+              <div className="max-h-[340px] space-y-2 overflow-y-auto pr-1">
+                {maps.map((map) => {
+                  const checked = selectedIds.includes(map.id);
+                  return (
+                    <label
+                      key={map.id}
+                      className={cn(
+                        "flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 text-xs",
+                        checked ? "border-primary bg-primary/5" : "border-input bg-background",
+                      )}
+                    >
+                      <div className="mr-2 min-w-0 flex-1">
+                        <p className="truncate font-medium text-foreground">{map.fileName}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">Points {map.points.length}</p>
+                      </div>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(next) => {
+                          setSelectedIds((prev) => {
+                            if (next) {
+                              if (prev.includes(map.id)) {
+                                return prev;
+                              }
+                              return [...prev, map.id];
+                            }
+                            const filtered = prev.filter((id) => id !== map.id);
+                            if (filtered.length === 0) {
+                              return prev;
+                            }
+                            return filtered;
+                          });
+                        }}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
             <h2 className="text-sm font-semibold text-foreground">Overview</h2>
-            {!map && <p className="mt-2 text-xs text-muted-foreground">Upload an IBE CSV to preview statistics.</p>}
-            {map && (
+            {!primaryMap && <p className="mt-2 text-xs text-muted-foreground">请先选择至少一个文件。</p>}
+            {primaryMap && (
               <div className="mt-3 space-y-2 text-xs">
-                <div className="rounded-lg bg-muted/55 px-3 py-2 text-muted-foreground">File: <span className="text-foreground">{map.fileName}</span></div>
+                <div className="rounded-lg bg-muted/55 px-3 py-2 text-muted-foreground">
+                  3D 当前文件: <span className="text-foreground">{primaryMap.fileName}</span>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-lg bg-muted/55 px-3 py-2">
                     <div className="text-muted-foreground">Points</div>
-                    <div className="mt-1 font-semibold text-foreground">{map.points.length}</div>
+                    <div className="mt-1 font-semibold text-foreground">{primaryMap.points.length}</div>
                   </div>
                   <div className="rounded-lg bg-muted/55 px-3 py-2">
                     <div className="text-muted-foreground">Pitch</div>
-                    <div className="mt-1 font-semibold text-foreground">{map.pointPitch.toFixed(3)}</div>
+                    <div className="mt-1 font-semibold text-foreground">{primaryMap.pointPitch.toFixed(3)}</div>
                   </div>
                 </div>
                 <div className="rounded-lg bg-muted/55 px-3 py-2 text-muted-foreground">
-                  Z range: <span className="font-medium text-foreground">{map.bounds.minZ.toFixed(4)} - {map.bounds.maxZ.toFixed(4)}</span>
-                </div>
-                <div className="h-3 rounded-full" style={{ background: "linear-gradient(90deg, #0f52ff, #07d3ff, #8be44d, #ffd84e, #ff4329)" }} />
-                <div className="flex justify-between text-[11px] text-muted-foreground">
-                  <span>Low</span>
-                  <span>High</span>
+                  Z range: <span className="font-medium text-foreground">{primaryMap.bounds.minZ.toFixed(4)} - {primaryMap.bounds.maxZ.toFixed(4)}</span>
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        <div className="grid min-h-0 grid-cols-1 gap-5 xl:grid-cols-2">
-          <Heatmap2D map={map} grid={grid2D} />
-          <Surface3D map={map} grid={grid3D} />
+        <div className="grid min-h-0 grid-cols-1 gap-5">
+          <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">2D Heat Maps</h2>
+                <p className="text-xs text-muted-foreground">已选 {selectedMaps.length} 个文件，当前第 {activePage}/{pageCount} 页（每页最多 4 图）</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={activePage <= 1}
+                  onClick={() => setActivePage((prev) => Math.max(1, prev - 1))}
+                >
+                  Prev
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={activePage >= pageCount}
+                  onClick={() => setActivePage((prev) => Math.min(pageCount, prev + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+            {pagedMaps.length === 0 && <p className="text-xs text-muted-foreground">请在左侧勾选要查看的文件。</p>}
+            {pagedMaps.length > 0 && (
+              <div
+                className={cn(
+                  "grid gap-4",
+                  pagedMaps.length === 1 && "grid-cols-1",
+                  pagedMaps.length === 2 && "grid-cols-1 2xl:grid-cols-2",
+                  pagedMaps.length === 3 && "grid-cols-1 2xl:grid-cols-3",
+                  pagedMaps.length >= 4 && "grid-cols-1 2xl:grid-cols-2",
+                )}
+              >
+                {pagedMaps.map((map) => (
+                  <Heatmap2DPanel key={map.id} map={map} grid={grid2DMap.get(map.id) ?? null} showPoints={showPoints} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Surface3D map={primaryMap} grid={grid3D} />
         </div>
       </div>
     </div>
