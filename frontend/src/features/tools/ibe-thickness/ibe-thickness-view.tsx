@@ -837,6 +837,11 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     const baseDepth = 0.74;
     const sideSegments = 72;
     const rimRadius = 0.52;
+    const barX = 20;
+    const barY = 96;
+    const barW = 18;
+    const barH = Math.min(height * 0.58, 270);
+    const modelLeftBoundary = barX + barW + 52;
 
     const project = (x: number, y: number, z: number) => {
       const cosY = Math.cos(camera.rotY);
@@ -1001,6 +1006,9 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     cells.sort((a, b) => a.depth - b.depth);
 
     ctx.save();
+    ctx.beginPath();
+    ctx.rect(modelLeftBoundary, 0, width - modelLeftBoundary - 8, height);
+    ctx.clip();
     sideFaces.forEach((face) => {
       const gray = Math.round(118 * face.shade);
       ctx.fillStyle = `rgba(${gray}, ${gray}, ${gray}, 0.95)`;
@@ -1035,10 +1043,6 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
 
     ctx.restore();
 
-    const barX = 20;
-    const barY = 96;
-    const barW = 18;
-    const barH = Math.min(height * 0.58, 270);
     const steps = 42;
     for (let i = 0; i < steps; i += 1) {
       const t = i / (steps - 1);
