@@ -46,6 +46,8 @@ type Camera = {
   rotX: number;
   rotY: number;
   zoom: number;
+  panX: number;
+  panY: number;
 };
 
 type ScreenPoint = {
@@ -79,7 +81,7 @@ type PngEntry = {
 const EPSILON = 1e-6;
 const GRID_2D = 170;
 const GRID_3D = 64;
-const DEFAULT_CAMERA: Camera = { rotX: -1.02, rotY: 0.96, zoom: 1.16 };
+const DEFAULT_CAMERA: Camera = { rotX: -1.02, rotY: 0.96, zoom: 1.16, panX: 0, panY: 0 };
 const SCREEN_LAYOUT = { padLeft: 48, padRight: 22, padTop: 18, padBottom: 28 };
 const EXPORT_LAYOUT = { padLeft: 106, padRight: 52, padTop: 54, padBottom: 64 };
 const FILE_BUTTON_THEMES = [
@@ -792,7 +794,12 @@ const Heatmap2DPanel: React.FC<{
 
 const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> = ({ map, grid }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const dragRef = useRef({ active: false, x: 0, y: 0 });
+  const dragRef = useRef<{ active: boolean; x: number; y: number; mode: "rotate" | "pan" }>({
+    active: false,
+    x: 0,
+    y: 0,
+    mode: "rotate",
+  });
   const [camera, setCamera] = useState<Camera>(DEFAULT_CAMERA);
 
   useEffect(() => {
@@ -850,8 +857,8 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
       return;
     }
 
-    const centerX = width * 0.56;
-    const centerY = height * 0.58;
+    const centerX = width * 0.56 + camera.panX;
+    const centerY = height * 0.58 + camera.panY;
     const waferRadius = Math.min(width, height) * 0.3;
     const scaleXY = waferRadius * 1.7 * camera.zoom;
     const heightFactor = 0.72;
@@ -1107,7 +1114,12 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
         ref={canvasRef}
         className="h-[430px] w-full cursor-grab rounded-xl border border-input/80 bg-background/60 [touch-action:none] active:cursor-grabbing"
         onMouseDown={(event) => {
-          dragRef.current = { active: true, x: event.clientX, y: event.clientY };
+          dragRef.current = {
+            active: true,
+            x: event.clientX,
+            y: event.clientY,
+            mode: event.button === 2 || event.shiftKey ? "pan" : "rotate",
+          };
         }}
         onMouseMove={(event) => {
           if (!dragRef.current.active) {
@@ -1115,7 +1127,16 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
           }
           const dx = event.clientX - dragRef.current.x;
           const dy = event.clientY - dragRef.current.y;
-          dragRef.current = { active: true, x: event.clientX, y: event.clientY };
+          dragRef.current = { ...dragRef.current, active: true, x: event.clientX, y: event.clientY };
+
+          if (dragRef.current.mode === "pan") {
+            setCamera((prev) => ({
+              ...prev,
+              panX: prev.panX + dx,
+              panY: prev.panY + dy,
+            }));
+            return;
+          }
 
           setCamera((prev) => ({
             ...prev,
@@ -1129,6 +1150,7 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
         onMouseLeave={() => {
           dragRef.current.active = false;
         }}
+        onContextMenu={(event) => event.preventDefault()}
       />
     </div>
   );
