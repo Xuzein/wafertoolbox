@@ -722,11 +722,11 @@ const Heatmap2DPanel: React.FC<{
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+      <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,1fr)_220px]">
         <div className="relative">
         <canvas
           ref={canvasRef}
-          className="h-[350px] w-full rounded-lg border border-slate-200 bg-slate-50/40"
+          className="aspect-square w-full rounded-lg border border-slate-200 bg-slate-50/40"
           onMouseMove={(event) => setHoveredIndex(pickNearestIndex(event.clientX, event.clientY))}
           onMouseLeave={() => setHoveredIndex(null)}
           onClick={(event) => {
@@ -751,7 +751,7 @@ const Heatmap2DPanel: React.FC<{
         )}
         </div>
 
-        <div className="flex h-full flex-col justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 text-[11px]">
+        <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 text-[11px] sm:grid-cols-3 2xl:flex 2xl:h-full 2xl:flex-col 2xl:justify-center">
           {buildStatsRows(stats).map((row) => (
             <div
               key={row.label}
@@ -1280,8 +1280,8 @@ const IbeThicknessView: React.FC = () => {
               selectedMaps.length === 1 && "grid-cols-1",
               selectedMaps.length === 2 && "grid-cols-1 xl:grid-cols-2",
               (selectedMaps.length === 3 || selectedMaps.length === 4) && "grid-cols-1 lg:grid-cols-2",
-              (selectedMaps.length === 5 || selectedMaps.length === 6) && "grid-cols-1 md:grid-cols-2 2xl:grid-cols-3",
-              selectedMaps.length >= 7 && "grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
+              (selectedMaps.length === 5 || selectedMaps.length === 6) && "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
+              selectedMaps.length >= 7 && "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
             )}
           >
             {selectedMaps.map((map) => {
