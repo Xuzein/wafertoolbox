@@ -309,13 +309,13 @@ const computeStats = (points: ThicknessPoint[]): TopographyStats => {
 };
 
 const buildStatsRows = (stats: TopographyStats) => [
-  { label: "Z Max", value: fmt2(stats.zMax) },
-  { label: "Z Min", value: fmt2(stats.zMin) },
-  { label: "Z Range (Peak-to-Valley)", value: fmt2(stats.zRange) },
-  { label: "Z Mean", value: fmt2(stats.zMean) },
-  { label: "Z Median", value: fmt2(stats.zMedian) },
-  { label: "Z Std Dev (Sigma)", value: fmt2(stats.zSigma) },
-  { label: "Uniformity (%)", value: Number.isFinite(stats.uniformity) ? fmt2(stats.uniformity) : "N/A" },
+  { label: "Max", value: fmt2(stats.zMax) },
+  { label: "Min", value: fmt2(stats.zMin) },
+  { label: "Rang", value: fmt2(stats.zRange) },
+  { label: "Mean", value: fmt2(stats.zMean) },
+  { label: "Median", value: fmt2(stats.zMedian) },
+  { label: "Std Dev", value: fmt2(stats.zSigma) },
+  { label: "U%", value: Number.isFinite(stats.uniformity) ? fmt2(stats.uniformity) : "N/A" },
 ];
 
 const drawHeatField = (
@@ -622,15 +622,16 @@ const Heatmap2DPanel: React.FC<{
   map: ParsedIbeMap;
   grid: HeatGrid;
   stats: TopographyStats;
+  hidePoints: boolean;
   onDownload: () => Promise<void>;
   isDownloading: boolean;
-}> = ({ map, grid, stats, onDownload, isDownloading }) => {
+}> = ({ map, grid, stats, hidePoints, onDownload, isDownloading }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pointPixelsRef = useRef<ScreenPoint[]>([]);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
-  const activeIndex = selectedIndex ?? hoveredIndex;
+  const activeIndex = hidePoints ? null : selectedIndex ?? hoveredIndex;
 
   const activePayload = useMemo<PointPayload | null>(() => {
     if (activeIndex === null) {
@@ -661,8 +662,23 @@ const Heatmap2DPanel: React.FC<{
     }
 
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    pointPixelsRef.current = drawHeatField(ctx, map, grid, width, height, SCREEN_LAYOUT, activeIndex);
-  }, [activeIndex, grid, map]);
+    pointPixelsRef.current = drawHeatField(
+      ctx,
+      map,
+      grid,
+      width,
+      height,
+      SCREEN_LAYOUT,
+      hidePoints ? null : activeIndex,
+    );
+  }, [activeIndex, grid, hidePoints, map]);
+
+  useEffect(() => {
+    if (hidePoints) {
+      setHoveredIndex(null);
+      setSelectedIndex(null);
+    }
+  }, [hidePoints]);
 
   const pickNearestIndex = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
@@ -688,14 +704,14 @@ const Heatmap2DPanel: React.FC<{
   };
 
   return (
-    <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="truncate text-sm font-semibold text-foreground">{map.fileName}</h3>
         <Button
           type="button"
           size="icon"
           variant="outline"
-          className="h-8 w-8"
+          className="h-8 w-8 border-slate-200 bg-white/85 text-slate-600 hover:bg-slate-50"
           disabled={isDownloading}
           onClick={() => {
             void onDownload();
@@ -706,10 +722,11 @@ const Heatmap2DPanel: React.FC<{
         </Button>
       </div>
 
-      <div className="relative">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="relative">
         <canvas
           ref={canvasRef}
-          className="h-[350px] w-full rounded-xl border border-input/80 bg-background/60"
+          className="h-[350px] w-full rounded-lg border border-slate-200 bg-slate-50/40"
           onMouseMove={(event) => setHoveredIndex(pickNearestIndex(event.clientX, event.clientY))}
           onMouseLeave={() => setHoveredIndex(null)}
           onClick={(event) => {
@@ -718,7 +735,7 @@ const Heatmap2DPanel: React.FC<{
           }}
         />
 
-        {activePayload && (
+        {activePayload && !hidePoints && (
           <div
             className="pointer-events-none absolute z-10 rounded-lg border border-sky-200 bg-white/96 px-2 py-1 text-[11px] shadow-md"
             style={{
@@ -732,15 +749,19 @@ const Heatmap2DPanel: React.FC<{
             <div className="text-slate-600">Z: {fmt2(activePayload.point.z)}</div>
           </div>
         )}
-      </div>
+        </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
-        {buildStatsRows(stats).map((row) => (
-          <div key={row.label} className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
-            <div className="text-[11px] text-slate-500">{row.label}</div>
-            <div className="mt-1 font-semibold text-slate-900">{row.value}</div>
-          </div>
-        ))}
+        <div className="flex h-full flex-col justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 text-[11px]">
+          {buildStatsRows(stats).map((row) => (
+            <div
+              key={row.label}
+              className="inline-flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-white/85 px-2 py-1"
+            >
+              <span className="text-slate-500">{row.label}</span>
+              <span className="font-semibold text-slate-900">{row.value}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -985,6 +1006,7 @@ const IbeThicknessView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [draggingGlobal, setDraggingGlobal] = useState(false);
+  const [hidePoints, setHidePoints] = useState(false);
   const [downloadingSingleId, setDownloadingSingleId] = useState<string | null>(null);
   const [downloadingAll, setDownloadingAll] = useState(false);
   const dragDepthRef = useRef(0);
@@ -1188,19 +1210,35 @@ const IbeThicknessView: React.FC = () => {
             <h2 className="text-sm font-semibold text-foreground">2D Heat Maps</h2>
             <p className="text-xs text-muted-foreground">Selected {selectedMaps.length} files, multi-panel adaptive layout</p>
           </div>
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            className="h-9 w-9 border-sky-300 text-sky-700 hover:bg-sky-50"
-            onClick={() => {
-              void handleDownloadAll();
-            }}
-            disabled={downloadingAll || selectedMaps.length === 0}
-            title="Download all selected maps"
-          >
-            <Download className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={hidePoints ? "default" : "outline"}
+              className={cn(
+                "h-8 rounded-lg px-3 text-xs",
+                hidePoints
+                  ? "bg-slate-700 text-white hover:bg-slate-800"
+                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+              )}
+              onClick={() => setHidePoints((prev) => !prev)}
+            >
+              Hide Points
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9 border-sky-300 text-sky-700 hover:bg-sky-50"
+              onClick={() => {
+                void handleDownloadAll();
+              }}
+              disabled={downloadingAll || selectedMaps.length === 0}
+              title="Download all selected maps"
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -1258,6 +1296,7 @@ const IbeThicknessView: React.FC = () => {
                   map={map}
                   grid={grid}
                   stats={stats}
+                  hidePoints={hidePoints}
                   isDownloading={downloadingSingleId === map.id}
                   onDownload={() => handleDownloadSingle(map)}
                 />
