@@ -79,7 +79,7 @@ type PngEntry = {
 const EPSILON = 1e-6;
 const GRID_2D = 170;
 const GRID_3D = 64;
-const DEFAULT_CAMERA: Camera = { rotX: -0.26, rotY: 0.62, zoom: 1.26 };
+const DEFAULT_CAMERA: Camera = { rotX: -0.88, rotY: 0.16, zoom: 1.18 };
 const SCREEN_LAYOUT = { padLeft: 48, padRight: 22, padTop: 18, padBottom: 28 };
 const EXPORT_LAYOUT = { padLeft: 106, padRight: 52, padTop: 54, padBottom: 64 };
 const FILE_BUTTON_THEMES = [
@@ -1071,7 +1071,7 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-foreground">3D Surface</h3>
-          <p className="text-xs text-muted-foreground">{map?.fileName ?? "无可展示文件"}</p>
+          <p className="text-xs font-semibold text-black">{map?.fileName ?? "无可展示文件"}</p>
         </div>
         <Button size="sm" type="button" variant="outline" className="h-8" onClick={() => setCamera(DEFAULT_CAMERA)}>
           <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
@@ -1094,7 +1094,7 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
 
           setCamera((prev) => ({
             ...prev,
-            rotY: clamp(prev.rotY + dx * 0.006, 0.08, 1.52),
+            rotY: prev.rotY + dx * 0.006,
             rotX: clamp(prev.rotX + dy * 0.006, -1.2, 0.18),
           }));
         }}
@@ -1160,8 +1160,13 @@ const IbeThicknessView: React.FC = () => {
     return entries;
   }, [selectedMaps]);
 
-  const primaryMap = selectedMaps[0] ?? null;
-  const grid3D = useMemo(() => (primaryMap ? buildHeatGrid(primaryMap, GRID_3D) : null), [primaryMap]);
+  const grid3DMap = useMemo(() => {
+    const entries = new Map<string, HeatGrid>();
+    selectedMaps.forEach((map) => {
+      entries.set(map.id, buildHeatGrid(map, GRID_3D));
+    });
+    return entries;
+  }, [selectedMaps]);
 
   useEffect(() => {
     void Environment()
@@ -1436,7 +1441,20 @@ const IbeThicknessView: React.FC = () => {
         )}
       </div>
 
-      <Surface3D map={primaryMap} grid={grid3D} />
+      <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-foreground">3D Surfaces</h2>
+          <p className="text-xs text-muted-foreground">Count is synced with selected 2D files</p>
+        </div>
+        {selectedMaps.length === 0 && <p className="text-xs text-muted-foreground">请先选择至少一个文件用于 3D 展示。</p>}
+        {selectedMaps.length > 0 && (
+          <div className="grid grid-cols-1 gap-4">
+            {selectedMaps.map((map) => (
+              <Surface3D key={map.id} map={map} grid={grid3DMap.get(map.id) ?? null} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
