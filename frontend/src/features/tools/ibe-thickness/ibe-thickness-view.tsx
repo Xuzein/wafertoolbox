@@ -829,10 +829,13 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
       return;
     }
 
-    const centerX = width * 0.5;
-    const centerY = height * 0.56;
-    const scaleXY = Math.min(width, height) * 0.36 * camera.zoom;
-    const zScale = Math.min(width, height) * 0.21;
+    const centerX = width * 0.56;
+    const centerY = height * 0.58;
+    const waferRadius = Math.min(width, height) * 0.3;
+    const scaleXY = waferRadius * 1.7 * camera.zoom;
+    const zScale = Math.min(width, height) * 0.16;
+    const baseDepth = 0.42;
+    const sideSegments = 72;
 
     const project = (x: number, y: number, z: number) => {
       const cosY = Math.cos(camera.rotY);
@@ -868,11 +871,6 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
 
     const valueAt = (gx: number, gy: number) => grid.values[gy * grid.width + gx];
 
-    const baseA = project(-0.55, 0.55, 0);
-    const baseB = project(0.55, 0.55, 0);
-    const baseC = project(0.55, -0.55, 0);
-    const baseD = project(-0.55, -0.55, 0);
-
     const shadow = ctx.createRadialGradient(centerX, centerY + 28, 10, centerX, centerY + 28, Math.min(width, height) * 0.42);
     shadow.addColorStop(0, "rgba(15, 23, 42, 0.18)");
     shadow.addColorStop(1, "rgba(15, 23, 42, 0)");
@@ -894,10 +892,19 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
         const ny0 = gy / (grid.height - 1) - 0.5;
         const ny1 = (gy + 1) / (grid.height - 1) - 0.5;
 
-        const z00 = (ratioOfZ(v00, grid.min, grid.max) - 0.1) * zScale;
-        const z10 = (ratioOfZ(v10, grid.min, grid.max) - 0.1) * zScale;
-        const z01 = (ratioOfZ(v01, grid.min, grid.max) - 0.1) * zScale;
-        const z11 = (ratioOfZ(v11, grid.min, grid.max) - 0.1) * zScale;
+        if (
+          Math.hypot(nx0, ny0) > 0.52 &&
+          Math.hypot(nx1, ny0) > 0.52 &&
+          Math.hypot(nx0, ny1) > 0.52 &&
+          Math.hypot(nx1, ny1) > 0.52
+        ) {
+          continue;
+        }
+
+        const z00 = (ratioOfZ(v00, grid.min, grid.max) - 0.5) * 0.56;
+        const z10 = (ratioOfZ(v10, grid.min, grid.max) - 0.5) * 0.56;
+        const z01 = (ratioOfZ(v01, grid.min, grid.max) - 0.5) * 0.56;
+        const z11 = (ratioOfZ(v11, grid.min, grid.max) - 0.5) * 0.56;
 
         const p0 = project(nx0, -ny0, z00 / zScale);
         const p1 = project(nx1, -ny0, z10 / zScale);
@@ -926,18 +933,56 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
       }
     }
 
+    const sideFaces: Array<{
+      p0: { x: number; y: number; z: number };
+      p1: { x: number; y: number; z: number };
+      p2: { x: number; y: number; z: number };
+      p3: { x: number; y: number; z: number };
+      depth: number;
+      shade: number;
+    }> = [];
+
+    for (let index = 0; index < sideSegments; index += 1) {
+      const a0 = (index / sideSegments) * Math.PI * 2;
+      const a1 = ((index + 1) / sideSegments) * Math.PI * 2;
+      const r = 0.52;
+      const x0 = Math.cos(a0) * r;
+      const y0 = Math.sin(a0) * r;
+      const x1 = Math.cos(a1) * r;
+      const y1 = Math.sin(a1) * r;
+      const top0 = project(x0, -y0, 0.05);
+      const top1 = project(x1, -y1, 0.05);
+      const bottom1 = project(x1, -y1, -baseDepth);
+      const bottom0 = project(x0, -y0, -baseDepth);
+      const light = clamp(0.62 + Math.cos((a0 + a1) * 0.5 - camera.rotY) * 0.16, 0.42, 0.82);
+      sideFaces.push({
+        p0: top0,
+        p1: top1,
+        p2: bottom1,
+        p3: bottom0,
+        depth: (top0.z + top1.z + bottom1.z + bottom0.z) / 4,
+        shade: light,
+      });
+    }
+
+    sideFaces.sort((a, b) => a.depth - b.depth);
     cells.sort((a, b) => a.depth - b.depth);
 
     ctx.save();
-    ctx.strokeStyle = "rgba(28, 55, 104, 0.38)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(baseA.x, baseA.y);
-    ctx.lineTo(baseB.x, baseB.y);
-    ctx.lineTo(baseC.x, baseC.y);
-    ctx.lineTo(baseD.x, baseD.y);
-    ctx.closePath();
-    ctx.stroke();
+    sideFaces.forEach((face) => {
+      const gray = Math.round(118 * face.shade);
+      ctx.fillStyle = `rgba(${gray}, ${gray}, ${gray}, 0.95)`;
+      ctx.beginPath();
+      ctx.moveTo(face.p0.x, face.p0.y);
+      ctx.lineTo(face.p1.x, face.p1.y);
+      ctx.lineTo(face.p2.x, face.p2.y);
+      ctx.lineTo(face.p3.x, face.p3.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(35,35,35,0.45)";
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    });
 
     cells.forEach((cell) => {
       const rr = Math.round(cell.color.r * cell.shade);
@@ -951,16 +996,42 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
       ctx.lineTo(cell.p3.x, cell.p3.y);
       ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = "rgba(45,55,72,0.25)";
+      ctx.lineWidth = 0.4;
+      ctx.stroke();
     });
 
     ctx.restore();
 
-    ctx.fillStyle = "rgba(30, 41, 59, 0.84)";
+    const barX = 20;
+    const barY = 96;
+    const barW = 18;
+    const barH = Math.min(height * 0.58, 270);
+    const steps = 42;
+    for (let i = 0; i < steps; i += 1) {
+      const t = i / (steps - 1);
+      const color = jetColor(1 - t);
+      const y = barY + (barH / steps) * i;
+      ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+      ctx.fillRect(barX, y, barW, barH / steps + 1);
+    }
+    ctx.strokeStyle = "rgba(30,41,59,0.35)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(barX, barY, barW, barH);
+    ctx.fillStyle = "rgba(30,41,59,0.84)";
+    ctx.font = "600 11px sans-serif";
+    ctx.textAlign = "left";
+    for (let i = 0; i <= 6; i += 1) {
+      const t = i / 6;
+      const y = barY + barH * t;
+      const value = grid.max - (grid.max - grid.min) * t;
+      ctx.fillText(value.toFixed(2), barX + barW + 10, y + 4);
+    }
+
+    ctx.fillStyle = "rgba(30,41,59,0.82)";
     ctx.font = "600 12px sans-serif";
-    ctx.fillText("X", baseC.x + 10, baseC.y + 4);
-    ctx.fillText("Y", baseD.x - 14, baseD.y + 14);
-    ctx.fillText("Z", baseA.x - 12, baseA.y - 10);
-    ctx.fillText("拖拽旋转，滚轮缩放", 16, 24);
+    ctx.fillText("Drag to rotate, wheel to zoom", 20, 28);
+    ctx.fillText("6-inch wafer", 20, 48);
   }, [camera, map, grid]);
 
   return (
