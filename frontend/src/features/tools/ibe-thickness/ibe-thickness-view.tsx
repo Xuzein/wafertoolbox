@@ -51,7 +51,6 @@ type Camera = {
 const EPSILON = 1e-6;
 const GRID_2D = 170;
 const GRID_3D = 64;
-const MAX_2D_PER_PAGE = 4;
 const DEFAULT_CAMERA: Camera = { rotX: -0.82, rotY: 0.78, zoom: 1.18 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -251,8 +250,8 @@ const ratioOfZ = (z: number, minZ: number, maxZ: number) => {
 const Heatmap2DPanel: React.FC<{
   map: ParsedIbeMap | null;
   grid: HeatGrid | null;
-  showPoints: boolean;
-}> = ({ map, grid, showPoints }) => {
+  showPointValues: boolean;
+}> = ({ map, grid, showPointValues }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -347,7 +346,7 @@ const Heatmap2DPanel: React.FC<{
     const xToPx = (x: number) => padLeft + ((x - map.bounds.minX) / map.bounds.spanX) * plotW;
     const yToPx = (y: number) => padTop + ((map.bounds.maxY - y) / map.bounds.spanY) * plotH;
 
-    if (showPoints) {
+    if (showPointValues) {
       map.points.forEach((point) => {
         const ratio = ratioOfZ(point.z, map.bounds.minZ, map.bounds.maxZ);
         const color = jetColor(ratio);
@@ -355,13 +354,22 @@ const Heatmap2DPanel: React.FC<{
         const py = yToPx(point.y);
         ctx.beginPath();
         ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.95)`;
-        ctx.arc(px, py, 3.4, 0, Math.PI * 2);
+        ctx.arc(px, py, 2.7, 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
         ctx.strokeStyle = "rgba(255,255,255,0.75)";
-        ctx.lineWidth = 0.75;
-        ctx.arc(px, py, 3.4, 0, Math.PI * 2);
+        ctx.lineWidth = 0.7;
+        ctx.arc(px, py, 2.7, 0, Math.PI * 2);
         ctx.stroke();
+
+        ctx.font = "600 10px sans-serif";
+        ctx.textAlign = "left";
+        ctx.lineWidth = 2.4;
+        ctx.strokeStyle = "rgba(255,255,255,0.95)";
+        const text = point.z.toFixed(4);
+        ctx.strokeText(text, px + 4, py - 4);
+        ctx.fillStyle = "rgba(22, 31, 49, 0.9)";
+        ctx.fillText(text, px + 4, py - 4);
       });
     }
 
@@ -375,7 +383,7 @@ const Heatmap2DPanel: React.FC<{
     ctx.fillText(`${grid.max.toFixed(4)} max`, padLeft + 6, padTop + 14);
     ctx.textAlign = "right";
     ctx.fillText(`${grid.min.toFixed(4)} min`, padLeft + plotW - 6, padTop + 14);
-  }, [map, grid, showPoints]);
+  }, [map, grid, showPointValues]);
 
   return (
     <div className="rounded-2xl border border-input bg-card/85 p-4 shadow-sm">
@@ -623,11 +631,10 @@ const IbeThicknessView: React.FC = () => {
 
   const [maps, setMaps] = useState<ParsedIbeMap[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [showPoints, setShowPoints] = useState(true);
+  const [showPointValues, setShowPointValues] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [draggingGlobal, setDraggingGlobal] = useState(false);
-  const [activePage, setActivePage] = useState(1);
   const dragDepthRef = useRef(0);
 
   const selectedMaps = useMemo(
@@ -635,27 +642,16 @@ const IbeThicknessView: React.FC = () => {
     [maps, selectedIds],
   );
 
-  const pageCount = Math.max(1, Math.ceil(selectedMaps.length / MAX_2D_PER_PAGE));
-
-  const pagedMaps = useMemo(() => {
-    const begin = (activePage - 1) * MAX_2D_PER_PAGE;
-    return selectedMaps.slice(begin, begin + MAX_2D_PER_PAGE);
-  }, [activePage, selectedMaps]);
-
   const grid2DMap = useMemo(() => {
     const entries = new Map<string, HeatGrid>();
-    pagedMaps.forEach((map) => {
+    selectedMaps.forEach((map) => {
       entries.set(map.id, buildHeatGrid(map, GRID_2D));
     });
     return entries;
-  }, [pagedMaps]);
+  }, [selectedMaps]);
 
   const primaryMap = selectedMaps[0] ?? null;
   const grid3D = useMemo(() => (primaryMap ? buildHeatGrid(primaryMap, GRID_3D) : null), [primaryMap]);
-
-  useEffect(() => {
-    setActivePage((prev) => Math.min(Math.max(prev, 1), pageCount));
-  }, [pageCount]);
 
   useEffect(() => {
     setSelectedIds((prev) => {
@@ -773,81 +769,6 @@ const IbeThicknessView: React.FC = () => {
             {loading && <p className="mt-2 text-xs text-muted-foreground">Parsing file...</p>}
             {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
           </div>
-
-          <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">2D Options</h2>
-              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                <Checkbox checked={showPoints} onCheckedChange={(checked) => setShowPoints(Boolean(checked))} />
-                显示小点
-              </label>
-            </div>
-            {maps.length === 0 && <p className="text-xs text-muted-foreground">暂无文件，先拖拽 CSV 文件到页面。</p>}
-            {maps.length > 0 && (
-              <div className="max-h-[340px] space-y-2 overflow-y-auto pr-1">
-                {maps.map((map) => {
-                  const checked = selectedIds.includes(map.id);
-                  return (
-                    <label
-                      key={map.id}
-                      className={cn(
-                        "flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 text-xs",
-                        checked ? "border-primary bg-primary/5" : "border-input bg-background",
-                      )}
-                    >
-                      <div className="mr-2 min-w-0 flex-1">
-                        <p className="truncate font-medium text-foreground">{map.fileName}</p>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">Points {map.points.length}</p>
-                      </div>
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={(next) => {
-                          setSelectedIds((prev) => {
-                            if (next) {
-                              if (prev.includes(map.id)) {
-                                return prev;
-                              }
-                              return [...prev, map.id];
-                            }
-                            const filtered = prev.filter((id) => id !== map.id);
-                            if (filtered.length === 0) {
-                              return prev;
-                            }
-                            return filtered;
-                          });
-                        }}
-                      />
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-foreground">Overview</h2>
-            {!primaryMap && <p className="mt-2 text-xs text-muted-foreground">请先选择至少一个文件。</p>}
-            {primaryMap && (
-              <div className="mt-3 space-y-2 text-xs">
-                <div className="rounded-lg bg-muted/55 px-3 py-2 text-muted-foreground">
-                  3D 当前文件: <span className="text-foreground">{primaryMap.fileName}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg bg-muted/55 px-3 py-2">
-                    <div className="text-muted-foreground">Points</div>
-                    <div className="mt-1 font-semibold text-foreground">{primaryMap.points.length}</div>
-                  </div>
-                  <div className="rounded-lg bg-muted/55 px-3 py-2">
-                    <div className="text-muted-foreground">Pitch</div>
-                    <div className="mt-1 font-semibold text-foreground">{primaryMap.pointPitch.toFixed(3)}</div>
-                  </div>
-                </div>
-                <div className="rounded-lg bg-muted/55 px-3 py-2 text-muted-foreground">
-                  Z range: <span className="font-medium text-foreground">{primaryMap.bounds.minZ.toFixed(4)} - {primaryMap.bounds.maxZ.toFixed(4)}</span>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
         <div className="grid min-h-0 grid-cols-1 gap-5">
@@ -855,40 +776,58 @@ const IbeThicknessView: React.FC = () => {
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-foreground">2D Heat Maps</h2>
-                <p className="text-xs text-muted-foreground">已选 {selectedMaps.length} 个文件，当前第 {activePage}/{pageCount} 页（每页最多 4 图）</p>
+                <p className="text-xs text-muted-foreground">已选 {selectedMaps.length} 个文件，可多选同屏查看</p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={activePage <= 1}
-                  onClick={() => setActivePage((prev) => Math.max(1, prev - 1))}
-                >
-                  Prev
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={activePage >= pageCount}
-                  onClick={() => setActivePage((prev) => Math.min(pageCount, prev + 1))}
-                >
-                  Next
-                </Button>
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox checked={showPointValues} onCheckedChange={(checked) => setShowPointValues(Boolean(checked))} />
+                圆点+Z值
+              </label>
+            </div>
+            <div className="mb-4 overflow-x-auto pb-1">
+              <div className="flex min-w-max items-center gap-2">
+                {maps.length === 0 && <p className="text-xs text-muted-foreground">暂无文件，先拖拽 CSV 文件到页面。</p>}
+                {maps.map((map) => {
+                  const selected = selectedIds.includes(map.id);
+                  return (
+                    <Button
+                      key={map.id}
+                      size="sm"
+                      variant={selected ? "default" : "outline"}
+                      className={cn("h-8 px-3", selected && "bg-primary text-primary-foreground hover:bg-primary/90")}
+                      onClick={() => {
+                        setSelectedIds((prev) => {
+                          if (prev.includes(map.id)) {
+                            const filtered = prev.filter((id) => id !== map.id);
+                            return filtered.length > 0 ? filtered : prev;
+                          }
+                          return [...prev, map.id];
+                        });
+                      }}
+                    >
+                      <span className="max-w-[220px] truncate">{map.fileName}</span>
+                    </Button>
+                  );
+                })}
               </div>
             </div>
-            {pagedMaps.length === 0 && <p className="text-xs text-muted-foreground">请在左侧勾选要查看的文件。</p>}
-            {pagedMaps.length > 0 && (
+            {selectedMaps.length === 0 && <p className="text-xs text-muted-foreground">请先选择至少一个文件用于 2D 展示。</p>}
+            {selectedMaps.length > 0 && (
               <div
                 className={cn(
                   "grid gap-4",
-                  pagedMaps.length === 1 && "grid-cols-1",
-                  pagedMaps.length === 2 && "grid-cols-1 2xl:grid-cols-2",
-                  pagedMaps.length === 3 && "grid-cols-1 2xl:grid-cols-3",
-                  pagedMaps.length >= 4 && "grid-cols-1 2xl:grid-cols-2",
+                  selectedMaps.length === 1 && "grid-cols-1",
+                  selectedMaps.length === 2 && "grid-cols-1 lg:grid-cols-2",
+                  selectedMaps.length === 3 && "grid-cols-1 md:grid-cols-2 2xl:grid-cols-3",
+                  selectedMaps.length >= 4 && "grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
                 )}
               >
-                {pagedMaps.map((map) => (
-                  <Heatmap2DPanel key={map.id} map={map} grid={grid2DMap.get(map.id) ?? null} showPoints={showPoints} />
+                {selectedMaps.map((map) => (
+                  <Heatmap2DPanel
+                    key={map.id}
+                    map={map}
+                    grid={grid2DMap.get(map.id) ?? null}
+                    showPointValues={showPointValues}
+                  />
                 ))}
               </div>
             )}
