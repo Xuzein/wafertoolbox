@@ -79,7 +79,7 @@ type PngEntry = {
 const EPSILON = 1e-6;
 const GRID_2D = 170;
 const GRID_3D = 64;
-const DEFAULT_CAMERA: Camera = { rotX: -0.82, rotY: 0.78, zoom: 1.18 };
+const DEFAULT_CAMERA: Camera = { rotX: -0.26, rotY: 0.62, zoom: 1.26 };
 const SCREEN_LAYOUT = { padLeft: 48, padRight: 22, padTop: 18, padBottom: 28 };
 const EXPORT_LAYOUT = { padLeft: 106, padRight: 52, padTop: 54, padBottom: 64 };
 const FILE_BUTTON_THEMES = [
@@ -833,9 +833,10 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     const centerY = height * 0.58;
     const waferRadius = Math.min(width, height) * 0.3;
     const scaleXY = waferRadius * 1.7 * camera.zoom;
-    const zScale = Math.min(width, height) * 0.16;
-    const baseDepth = 0.42;
+    const heightFactor = 0.72;
+    const baseDepth = 0.74;
     const sideSegments = 72;
+    const rimRadius = 0.52;
 
     const project = (x: number, y: number, z: number) => {
       const cosY = Math.cos(camera.rotY);
@@ -870,6 +871,37 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     }> = [];
 
     const valueAt = (gx: number, gy: number) => grid.values[gy * grid.width + gx];
+    const heightOfRatio = (r: number) => (r - 0.5) * heightFactor;
+
+    const sampleRatioAt = (nx: number, ny: number) => {
+      const fx = clamp((nx + 0.5) * (grid.width - 1), 0, grid.width - 1);
+      const fy = clamp((ny + 0.5) * (grid.height - 1), 0, grid.height - 1);
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = Math.min(x0 + 1, grid.width - 1);
+      const y1 = Math.min(y0 + 1, grid.height - 1);
+      const tx = fx - x0;
+      const ty = fy - y0;
+
+      const v00 = valueAt(x0, y0);
+      const v10 = valueAt(x1, y0);
+      const v01 = valueAt(x0, y1);
+      const v11 = valueAt(x1, y1);
+      const finite = [v00, v10, v01, v11].filter((value) => Number.isFinite(value));
+      if (finite.length === 0) {
+        return 0.5;
+      }
+
+      if (finite.length < 4) {
+        const avg = finite.reduce((sum, value) => sum + value, 0) / finite.length;
+        return ratioOfZ(avg, grid.min, grid.max);
+      }
+
+      const top = v00 * (1 - tx) + v10 * tx;
+      const bottom = v01 * (1 - tx) + v11 * tx;
+      const mixed = top * (1 - ty) + bottom * ty;
+      return ratioOfZ(mixed, grid.min, grid.max);
+    };
 
     const shadow = ctx.createRadialGradient(centerX, centerY + 28, 10, centerX, centerY + 28, Math.min(width, height) * 0.42);
     shadow.addColorStop(0, "rgba(15, 23, 42, 0.18)");
@@ -893,23 +925,23 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
         const ny1 = (gy + 1) / (grid.height - 1) - 0.5;
 
         if (
-          Math.hypot(nx0, ny0) > 0.52 &&
-          Math.hypot(nx1, ny0) > 0.52 &&
-          Math.hypot(nx0, ny1) > 0.52 &&
-          Math.hypot(nx1, ny1) > 0.52
+          Math.hypot(nx0, ny0) > rimRadius &&
+          Math.hypot(nx1, ny0) > rimRadius &&
+          Math.hypot(nx0, ny1) > rimRadius &&
+          Math.hypot(nx1, ny1) > rimRadius
         ) {
           continue;
         }
 
-        const z00 = (ratioOfZ(v00, grid.min, grid.max) - 0.5) * 0.56;
-        const z10 = (ratioOfZ(v10, grid.min, grid.max) - 0.5) * 0.56;
-        const z01 = (ratioOfZ(v01, grid.min, grid.max) - 0.5) * 0.56;
-        const z11 = (ratioOfZ(v11, grid.min, grid.max) - 0.5) * 0.56;
+        const z00 = heightOfRatio(ratioOfZ(v00, grid.min, grid.max));
+        const z10 = heightOfRatio(ratioOfZ(v10, grid.min, grid.max));
+        const z01 = heightOfRatio(ratioOfZ(v01, grid.min, grid.max));
+        const z11 = heightOfRatio(ratioOfZ(v11, grid.min, grid.max));
 
-        const p0 = project(nx0, -ny0, z00 / zScale);
-        const p1 = project(nx1, -ny0, z10 / zScale);
-        const p2 = project(nx1, -ny1, z11 / zScale);
-        const p3 = project(nx0, -ny1, z01 / zScale);
+        const p0 = project(nx0, -ny0, z00);
+        const p1 = project(nx1, -ny0, z10);
+        const p2 = project(nx1, -ny1, z11);
+        const p3 = project(nx0, -ny1, z01);
 
         const avg = (v00 + v10 + v01 + v11) / 4;
         const color = jetColor(ratioOfZ(avg, grid.min, grid.max));
@@ -945,13 +977,13 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     for (let index = 0; index < sideSegments; index += 1) {
       const a0 = (index / sideSegments) * Math.PI * 2;
       const a1 = ((index + 1) / sideSegments) * Math.PI * 2;
-      const r = 0.52;
+      const r = rimRadius;
       const x0 = Math.cos(a0) * r;
       const y0 = Math.sin(a0) * r;
       const x1 = Math.cos(a1) * r;
       const y1 = Math.sin(a1) * r;
-      const top0 = project(x0, -y0, 0.05);
-      const top1 = project(x1, -y1, 0.05);
+      const top0 = project(x0, -y0, heightOfRatio(sampleRatioAt(x0, y0)));
+      const top1 = project(x1, -y1, heightOfRatio(sampleRatioAt(x1, y1)));
       const bottom1 = project(x1, -y1, -baseDepth);
       const bottom0 = project(x0, -y0, -baseDepth);
       const light = clamp(0.62 + Math.cos((a0 + a1) * 0.5 - camera.rotY) * 0.16, 0.42, 0.82);
@@ -1062,8 +1094,8 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
 
           setCamera((prev) => ({
             ...prev,
-            rotY: clamp(prev.rotY + dx * 0.006, 0.24, 1.32),
-            rotX: clamp(prev.rotX + dy * 0.006, -1.12, -0.38),
+            rotY: clamp(prev.rotY + dx * 0.006, 0.08, 1.52),
+            rotX: clamp(prev.rotX + dy * 0.006, -1.2, 0.18),
           }));
         }}
         onMouseUp={() => {
@@ -1076,7 +1108,7 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
           event.preventDefault();
           setCamera((prev) => ({
             ...prev,
-            zoom: clamp(prev.zoom + (event.deltaY > 0 ? -0.05 : 0.05), 0.86, 1.68),
+            zoom: clamp(prev.zoom + (event.deltaY > 0 ? -0.05 : 0.05), 0.72, 2.2),
           }));
         }}
       />
