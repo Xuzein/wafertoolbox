@@ -1110,6 +1110,7 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
         }}
         onWheel={(event) => {
           event.preventDefault();
+          event.stopPropagation();
           setCamera((prev) => ({
             ...prev,
             zoom: clamp(prev.zoom + (event.deltaY > 0 ? -0.05 : 0.05), 0.72, 2.2),
