@@ -722,7 +722,7 @@ const Heatmap2DPanel: React.FC<{
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,1fr)_220px]">
+      <div className="grid grid-cols-[minmax(0,1fr)_220px] gap-3">
         <div className="relative">
         <canvas
           ref={canvasRef}
@@ -751,7 +751,7 @@ const Heatmap2DPanel: React.FC<{
         )}
         </div>
 
-        <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 text-[11px] sm:grid-cols-3 2xl:flex 2xl:h-full 2xl:flex-col 2xl:justify-center">
+        <div className="flex h-full flex-col justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 text-[11px]">
           {buildStatsRows(stats).map((row) => (
             <div
               key={row.label}
