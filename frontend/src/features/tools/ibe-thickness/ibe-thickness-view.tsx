@@ -722,7 +722,7 @@ const Heatmap2DPanel: React.FC<{
         </Button>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_220px] gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_168px] gap-3">
         <div className="relative">
         <canvas
           ref={canvasRef}
@@ -755,7 +755,7 @@ const Heatmap2DPanel: React.FC<{
           {buildStatsRows(stats).map((row) => (
             <div
               key={row.label}
-              className="inline-flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-white/85 px-2 py-1"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white/85 px-2 py-1"
             >
               <span className="text-slate-500">{row.label}</span>
               <span className="font-semibold text-slate-900">{row.value}</span>
@@ -1274,16 +1274,7 @@ const IbeThicknessView: React.FC = () => {
 
         {selectedMaps.length === 0 && <p className="text-xs text-muted-foreground">请先选择至少一个文件用于 2D 展示。</p>}
         {selectedMaps.length > 0 && (
-          <div
-            className={cn(
-              "grid gap-4",
-              selectedMaps.length === 1 && "grid-cols-1",
-              selectedMaps.length === 2 && "grid-cols-1 xl:grid-cols-2",
-              (selectedMaps.length === 3 || selectedMaps.length === 4) && "grid-cols-1 lg:grid-cols-2",
-              (selectedMaps.length === 5 || selectedMaps.length === 6) && "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
-              selectedMaps.length >= 7 && "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
-            )}
-          >
+          <div className="grid grid-cols-1 gap-4">
             {selectedMaps.map((map) => {
               const grid = grid2DMap.get(map.id);
               const stats = statsMap.get(map.id);
