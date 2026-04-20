@@ -3,6 +3,7 @@ import { useAppTitle } from "@/components/layout/app-title-context";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Download, RotateCcw } from "lucide-react";
+import { Environment } from "@wailsjs/runtime/runtime";
 
 type ThicknessPoint = {
   x: number;
@@ -325,6 +326,7 @@ const drawHeatField = (
   width: number,
   height: number,
   layout: { padLeft: number; padRight: number; padTop: number; padBottom: number },
+  showPoints: boolean,
   highlightedIndex: number | null,
 ): ScreenPoint[] => {
   const { padLeft, padRight, padTop, padBottom } = layout;
@@ -393,25 +395,27 @@ const drawHeatField = (
   const yToPx = (y: number) => padTop + ((map.bounds.maxY - y) / map.bounds.spanY) * plotH;
 
   const pointPixels: ScreenPoint[] = [];
-  map.points.forEach((point, index) => {
-    const ratio = ratioOfZ(point.z, map.bounds.minZ, map.bounds.maxZ);
-    const color = jetColor(ratio);
-    const px = xToPx(point.x);
-    const py = yToPx(point.y);
-    pointPixels.push({ index, x: px, y: py });
+  if (showPoints) {
+    map.points.forEach((point, index) => {
+      const ratio = ratioOfZ(point.z, map.bounds.minZ, map.bounds.maxZ);
+      const color = jetColor(ratio);
+      const px = xToPx(point.x);
+      const py = yToPx(point.y);
+      pointPixels.push({ index, x: px, y: py });
 
-    ctx.beginPath();
-    ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.95)`;
-    ctx.arc(px, py, 2.8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.strokeStyle = "rgba(255,255,255,0.75)";
-    ctx.lineWidth = 0.7;
-    ctx.arc(px, py, 2.8, 0, Math.PI * 2);
-    ctx.stroke();
-  });
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.95)`;
+      ctx.arc(px, py, 2.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(255,255,255,0.75)";
+      ctx.lineWidth = 0.7;
+      ctx.arc(px, py, 2.8, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+  }
 
-  if (highlightedIndex !== null) {
+  if (showPoints && highlightedIndex !== null) {
     const active = pointPixels.find((point) => point.index === highlightedIndex);
     if (active) {
       ctx.beginPath();
@@ -485,7 +489,22 @@ const downloadBlob = (blob: Blob, fileName: string) => {
   URL.revokeObjectURL(url);
 };
 
-const createPngWithMetrics = async (map: ParsedIbeMap, grid: HeatGrid, stats: TopographyStats) => {
+const inferDownloadDir = (platform: string) => {
+  if (platform.toLowerCase().includes("windows")) {
+    return "C:\\Users\\<you>\\Downloads";
+  }
+  if (platform.toLowerCase().includes("darwin")) {
+    return "~/Downloads";
+  }
+  return "~/Downloads";
+};
+
+const createPngWithMetrics = async (
+  map: ParsedIbeMap,
+  grid: HeatGrid,
+  stats: TopographyStats,
+  showPoints: boolean,
+) => {
   const canvas = document.createElement("canvas");
   canvas.width = 1700;
   canvas.height = 1280;
@@ -494,7 +513,7 @@ const createPngWithMetrics = async (map: ParsedIbeMap, grid: HeatGrid, stats: To
     throw new Error("Failed to initialize export canvas.");
   }
 
-  drawHeatField(ctx, map, grid, canvas.width, 980, EXPORT_LAYOUT, null);
+  drawHeatField(ctx, map, grid, canvas.width, 980, EXPORT_LAYOUT, showPoints, null);
 
   ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
   ctx.font = "700 24px sans-serif";
@@ -669,6 +688,7 @@ const Heatmap2DPanel: React.FC<{
       width,
       height,
       SCREEN_LAYOUT,
+      !hidePoints,
       hidePoints ? null : activeIndex,
     );
   }, [activeIndex, grid, hidePoints, map]);
@@ -681,6 +701,9 @@ const Heatmap2DPanel: React.FC<{
   }, [hidePoints]);
 
   const pickNearestIndex = (clientX: number, clientY: number) => {
+    if (hidePoints) {
+      return null;
+    }
     const canvas = canvasRef.current;
     if (!canvas) {
       return null;
@@ -1005,6 +1028,8 @@ const IbeThicknessView: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [downloadNotice, setDownloadNotice] = useState("");
+  const [runtimePlatform, setRuntimePlatform] = useState("darwin");
   const [draggingGlobal, setDraggingGlobal] = useState(false);
   const [hidePoints, setHidePoints] = useState(false);
   const [downloadingSingleId, setDownloadingSingleId] = useState<string | null>(null);
@@ -1034,6 +1059,12 @@ const IbeThicknessView: React.FC = () => {
 
   const primaryMap = selectedMaps[0] ?? null;
   const grid3D = useMemo(() => (primaryMap ? buildHeatGrid(primaryMap, GRID_3D) : null), [primaryMap]);
+
+  useEffect(() => {
+    void Environment()
+      .then((info) => setRuntimePlatform(info.platform || "darwin"))
+      .catch(() => setRuntimePlatform("darwin"));
+  }, []);
 
   useEffect(() => {
     setSelectedIds((prev) => {
@@ -1146,8 +1177,10 @@ const IbeThicknessView: React.FC = () => {
 
     try {
       setDownloadingSingleId(map.id);
-      const blob = await createPngWithMetrics(map, grid, stats);
-      downloadBlob(blob, `${sanitizeName(map.fileName.replace(/\.csv$/i, ""))}_topography.png`);
+      const fileName = `${sanitizeName(map.fileName.replace(/\.csv$/i, ""))}_topography.png`;
+      const blob = await createPngWithMetrics(map, grid, stats, !hidePoints);
+      downloadBlob(blob, fileName);
+      setDownloadNotice(`Saved to ${inferDownloadDir(runtimePlatform)} / ${fileName}`);
     } catch (downloadError) {
       setError(downloadError instanceof Error ? downloadError.message : "Failed to download PNG.");
     } finally {
@@ -1169,7 +1202,7 @@ const IbeThicknessView: React.FC = () => {
         if (!grid || !stats) {
           continue;
         }
-        const blob = await createPngWithMetrics(map, grid, stats);
+        const blob = await createPngWithMetrics(map, grid, stats, !hidePoints);
         const bytes = new Uint8Array(await blob.arrayBuffer());
         entries.push({
           name: `${sanitizeName(map.fileName.replace(/\.csv$/i, ""))}_topography.png`,
@@ -1183,7 +1216,9 @@ const IbeThicknessView: React.FC = () => {
       }
 
       const zipBytes = buildZip(entries);
-      downloadBlob(new Blob([zipBytes], { type: "application/zip" }), "ibe-topography-maps.zip");
+      const zipName = "ibe-topography-maps.zip";
+      downloadBlob(new Blob([zipBytes], { type: "application/zip" }), zipName);
+      setDownloadNotice(`Saved to ${inferDownloadDir(runtimePlatform)} / ${zipName}`);
     } catch (downloadError) {
       setError(downloadError instanceof Error ? downloadError.message : "Failed to generate ZIP package.");
     } finally {
@@ -1202,6 +1237,7 @@ const IbeThicknessView: React.FC = () => {
         <p className="mt-2 text-xs text-muted-foreground">将 CSV 文件拖拽到页面任意位置即可上传，支持一次拖入多个文件。</p>
         {loading && <p className="mt-2 text-xs text-muted-foreground">Parsing file...</p>}
         {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+        {downloadNotice && <p className="mt-2 text-xs text-sky-700">{downloadNotice}</p>}
       </div>
 
       <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
