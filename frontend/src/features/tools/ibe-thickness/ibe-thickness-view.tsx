@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppTitle } from "@/components/layout/app-title-context";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { RotateCcw } from "lucide-react";
+import { Download, RotateCcw } from "lucide-react";
 
 type ThicknessPoint = {
   x: number;
@@ -48,12 +47,50 @@ type Camera = {
   zoom: number;
 };
 
+type ScreenPoint = {
+  index: number;
+  x: number;
+  y: number;
+};
+
+type PointPayload = {
+  index: number;
+  point: ThicknessPoint;
+  x: number;
+  y: number;
+};
+
+type TopographyStats = {
+  zMax: number;
+  zMin: number;
+  zRange: number;
+  zMean: number;
+  zMedian: number;
+  zSigma: number;
+  uniformity: number;
+};
+
+type PngEntry = {
+  name: string;
+  bytes: Uint8Array;
+};
+
 const EPSILON = 1e-6;
 const GRID_2D = 170;
 const GRID_3D = 64;
 const DEFAULT_CAMERA: Camera = { rotX: -0.82, rotY: 0.78, zoom: 1.18 };
+const SCREEN_LAYOUT = { padLeft: 48, padRight: 22, padTop: 18, padBottom: 28 };
+const EXPORT_LAYOUT = { padLeft: 106, padRight: 52, padTop: 54, padBottom: 64 };
+const FILE_BUTTON_THEMES = [
+  "bg-gradient-to-r from-cyan-500 to-sky-500 text-white hover:from-cyan-600 hover:to-sky-600",
+  "bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600",
+  "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600",
+  "bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600",
+  "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600",
+];
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const fmt2 = (value: number) => value.toFixed(2);
 
 const parseCsvRow = (row: string): string[] => {
   const cells: string[] = [];
@@ -247,12 +284,365 @@ const ratioOfZ = (z: number, minZ: number, maxZ: number) => {
   return clamp((z - minZ) / (maxZ - minZ), 0, 1);
 };
 
+const computeStats = (points: ThicknessPoint[]): TopographyStats => {
+  const zValues = points.map((point) => point.z);
+  const zMax = Math.max(...zValues);
+  const zMin = Math.min(...zValues);
+  const zRange = zMax - zMin;
+  const zMean = zValues.reduce((sum, value) => sum + value, 0) / zValues.length;
+  const sorted = [...zValues].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  const zMedian = sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+  const variance = zValues.reduce((sum, value) => sum + (value - zMean) * (value - zMean), 0) / zValues.length;
+  const zSigma = Math.sqrt(variance);
+  const uniformity = Math.abs(zMean) < EPSILON ? Number.NaN : (zRange / (2 * zMean)) * 100;
+
+  return {
+    zMax,
+    zMin,
+    zRange,
+    zMean,
+    zMedian,
+    zSigma,
+    uniformity,
+  };
+};
+
+const buildStatsRows = (stats: TopographyStats) => [
+  { label: "Z Max", value: fmt2(stats.zMax) },
+  { label: "Z Min", value: fmt2(stats.zMin) },
+  { label: "Z Range (Peak-to-Valley)", value: fmt2(stats.zRange) },
+  { label: "Z Mean", value: fmt2(stats.zMean) },
+  { label: "Z Median", value: fmt2(stats.zMedian) },
+  { label: "Z Std Dev (Sigma)", value: fmt2(stats.zSigma) },
+  { label: "Uniformity (%)", value: Number.isFinite(stats.uniformity) ? fmt2(stats.uniformity) : "N/A" },
+];
+
+const drawHeatField = (
+  ctx: CanvasRenderingContext2D,
+  map: ParsedIbeMap,
+  grid: HeatGrid,
+  width: number,
+  height: number,
+  layout: { padLeft: number; padRight: number; padTop: number; padBottom: number },
+  highlightedIndex: number | null,
+): ScreenPoint[] => {
+  const { padLeft, padRight, padTop, padBottom } = layout;
+  const plotW = width - padLeft - padRight;
+  const plotH = height - padTop - padBottom;
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const background = ctx.createLinearGradient(0, 0, width, height);
+  background.addColorStop(0, "#f7fbff");
+  background.addColorStop(0.55, "#fdfefd");
+  background.addColorStop(1, "#fff9f1");
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, width, height);
+
+  const imageData = ctx.createImageData(grid.width, grid.height);
+  for (let i = 0; i < grid.values.length; i += 1) {
+    const value = grid.values[i];
+    const pixel = i * 4;
+    if (!Number.isFinite(value)) {
+      imageData.data[pixel + 3] = 0;
+      continue;
+    }
+    const color = jetColor(ratioOfZ(value, grid.min, grid.max));
+    imageData.data[pixel] = color.r;
+    imageData.data[pixel + 1] = color.g;
+    imageData.data[pixel + 2] = color.b;
+    imageData.data[pixel + 3] = 236;
+  }
+
+  const offscreen = document.createElement("canvas");
+  offscreen.width = grid.width;
+  offscreen.height = grid.height;
+  const offCtx = offscreen.getContext("2d");
+  if (!offCtx) {
+    return [];
+  }
+  offCtx.putImageData(imageData, 0, 0);
+
+  ctx.save();
+  ctx.globalAlpha = 0.94;
+  ctx.drawImage(offscreen, padLeft, padTop, plotW, plotH);
+  ctx.restore();
+
+  for (let tick = 0; tick <= 7; tick += 1) {
+    const y = padTop + (plotH / 7) * tick;
+    ctx.strokeStyle = "rgba(120, 130, 150, 0.2)";
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, y);
+    ctx.lineTo(padLeft + plotW, y);
+    ctx.stroke();
+  }
+  for (let tick = 0; tick <= 7; tick += 1) {
+    const x = padLeft + (plotW / 7) * tick;
+    ctx.strokeStyle = "rgba(120, 130, 150, 0.2)";
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(x, padTop);
+    ctx.lineTo(x, padTop + plotH);
+    ctx.stroke();
+  }
+
+  const xToPx = (x: number) => padLeft + ((x - map.bounds.minX) / map.bounds.spanX) * plotW;
+  const yToPx = (y: number) => padTop + ((map.bounds.maxY - y) / map.bounds.spanY) * plotH;
+
+  const pointPixels: ScreenPoint[] = [];
+  map.points.forEach((point, index) => {
+    const ratio = ratioOfZ(point.z, map.bounds.minZ, map.bounds.maxZ);
+    const color = jetColor(ratio);
+    const px = xToPx(point.x);
+    const py = yToPx(point.y);
+    pointPixels.push({ index, x: px, y: py });
+
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.95)`;
+    ctx.arc(px, py, 2.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255,255,255,0.75)";
+    ctx.lineWidth = 0.7;
+    ctx.arc(px, py, 2.8, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  if (highlightedIndex !== null) {
+    const active = pointPixels.find((point) => point.index === highlightedIndex);
+    if (active) {
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(30, 64, 175, 0.95)";
+      ctx.lineWidth = 2.2;
+      ctx.arc(active.x, active.y, 7, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.fillStyle = "rgba(30, 64, 175, 0.95)";
+      ctx.arc(active.x, active.y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.strokeStyle = "rgba(40, 53, 75, 0.55)";
+  ctx.lineWidth = 1.1;
+  ctx.strokeRect(padLeft, padTop, plotW, plotH);
+
+  return pointPixels;
+};
+
+const drawStatsFooter = (
+  ctx: CanvasRenderingContext2D,
+  stats: TopographyStats,
+  width: number,
+  y: number,
+  rowGap = 26,
+) => {
+  const rows = buildStatsRows(stats);
+  ctx.fillStyle = "rgba(248, 250, 252, 1)";
+  ctx.fillRect(0, y - 18, width, rowGap * 2 + 34);
+
+  ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+  ctx.font = "700 18px sans-serif";
+  ctx.fillText("IBE Topography Metrics", 30, y + 2);
+
+  ctx.font = "600 14px sans-serif";
+  rows.forEach((row, index) => {
+    const col = index % 4;
+    const rowLine = Math.floor(index / 4);
+    const x = 30 + col * ((width - 60) / 4);
+    const yy = y + 30 + rowLine * rowGap;
+    ctx.fillStyle = "rgba(71, 85, 105, 0.88)";
+    ctx.fillText(row.label, x, yy);
+    ctx.fillStyle = "rgba(15, 23, 42, 0.95)";
+    ctx.fillText(row.value, x, yy + 18);
+  });
+};
+
+const canvasToBlob = (canvas: HTMLCanvasElement) =>
+  new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Failed to encode PNG."));
+        return;
+      }
+      resolve(blob);
+    }, "image/png");
+  });
+
+const sanitizeName = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+const downloadBlob = (blob: Blob, fileName: string) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
+const createPngWithMetrics = async (map: ParsedIbeMap, grid: HeatGrid, stats: TopographyStats) => {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1700;
+  canvas.height = 1280;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Failed to initialize export canvas.");
+  }
+
+  drawHeatField(ctx, map, grid, canvas.width, 980, EXPORT_LAYOUT, null);
+
+  ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+  ctx.font = "700 24px sans-serif";
+  ctx.fillText(`Wafer Topography: ${map.fileName}`, 40, 1020);
+
+  drawStatsFooter(ctx, stats, canvas.width, 1060, 28);
+
+  return canvasToBlob(canvas);
+};
+
+const crc32Table = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i += 1) {
+    let crc = i;
+    for (let j = 0; j < 8; j += 1) {
+      crc = (crc & 1) ? (0xedb88320 ^ (crc >>> 1)) : (crc >>> 1);
+    }
+    table[i] = crc >>> 0;
+  }
+  return table;
+})();
+
+const crc32 = (bytes: Uint8Array) => {
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i += 1) {
+    crc = crc32Table[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+};
+
+const concatBytes = (parts: Uint8Array[]) => {
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  parts.forEach((part) => {
+    out.set(part, offset);
+    offset += part.length;
+  });
+  return out;
+};
+
+const u16 = (view: DataView, offset: number, value: number) => view.setUint16(offset, value, true);
+const u32 = (view: DataView, offset: number, value: number) => view.setUint32(offset, value >>> 0, true);
+
+const buildLocalHeader = (nameLength: number, crc: number, size: number) => {
+  const bytes = new Uint8Array(30);
+  const view = new DataView(bytes.buffer);
+  u32(view, 0, 0x04034b50);
+  u16(view, 4, 20);
+  u16(view, 6, 0);
+  u16(view, 8, 0);
+  u16(view, 10, 0);
+  u16(view, 12, 0);
+  u32(view, 14, crc);
+  u32(view, 18, size);
+  u32(view, 22, size);
+  u16(view, 26, nameLength);
+  u16(view, 28, 0);
+  return bytes;
+};
+
+const buildCentralHeader = (nameLength: number, crc: number, size: number, offset: number) => {
+  const bytes = new Uint8Array(46);
+  const view = new DataView(bytes.buffer);
+  u32(view, 0, 0x02014b50);
+  u16(view, 4, 20);
+  u16(view, 6, 20);
+  u16(view, 8, 0);
+  u16(view, 10, 0);
+  u16(view, 12, 0);
+  u16(view, 14, 0);
+  u32(view, 16, crc);
+  u32(view, 20, size);
+  u32(view, 24, size);
+  u16(view, 28, nameLength);
+  u16(view, 30, 0);
+  u16(view, 32, 0);
+  u16(view, 34, 0);
+  u16(view, 36, 0);
+  u32(view, 38, 0);
+  u32(view, 42, offset);
+  return bytes;
+};
+
+const buildEndOfCentral = (fileCount: number, centralSize: number, centralOffset: number) => {
+  const bytes = new Uint8Array(22);
+  const view = new DataView(bytes.buffer);
+  u32(view, 0, 0x06054b50);
+  u16(view, 4, 0);
+  u16(view, 6, 0);
+  u16(view, 8, fileCount);
+  u16(view, 10, fileCount);
+  u32(view, 12, centralSize);
+  u32(view, 16, centralOffset);
+  u16(view, 20, 0);
+  return bytes;
+};
+
+const buildZip = (entries: PngEntry[]) => {
+  const encoder = new TextEncoder();
+  const localParts: Uint8Array[] = [];
+  const centralParts: Uint8Array[] = [];
+  let localOffset = 0;
+
+  entries.forEach((entry) => {
+    const nameBytes = encoder.encode(entry.name);
+    const fileCrc = crc32(entry.bytes);
+    const localHeader = buildLocalHeader(nameBytes.length, fileCrc, entry.bytes.length);
+    const centralHeader = buildCentralHeader(nameBytes.length, fileCrc, entry.bytes.length, localOffset);
+
+    localParts.push(localHeader, nameBytes, entry.bytes);
+    centralParts.push(centralHeader, nameBytes);
+
+    localOffset += localHeader.length + nameBytes.length + entry.bytes.length;
+  });
+
+  const centralOffset = localOffset;
+  const centralData = concatBytes(centralParts);
+  const end = buildEndOfCentral(entries.length, centralData.length, centralOffset);
+
+  return concatBytes([...localParts, centralData, end]);
+};
+
 const Heatmap2DPanel: React.FC<{
-  map: ParsedIbeMap | null;
-  grid: HeatGrid | null;
-  showPointValues: boolean;
-}> = ({ map, grid, showPointValues }) => {
+  map: ParsedIbeMap;
+  grid: HeatGrid;
+  stats: TopographyStats;
+  onDownload: () => Promise<void>;
+  isDownloading: boolean;
+}> = ({ map, grid, stats, onDownload, isDownloading }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const pointPixelsRef = useRef<ScreenPoint[]>([]);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  const activeIndex = selectedIndex ?? hoveredIndex;
+
+  const activePayload = useMemo<PointPayload | null>(() => {
+    if (activeIndex === null) {
+      return null;
+    }
+    const point = map.points[activeIndex];
+    const screen = pointPixelsRef.current.find((item) => item.index === activeIndex);
+    if (!point || !screen) {
+      return null;
+    }
+    return { index: activeIndex, point, x: screen.x, y: screen.y };
+  }, [activeIndex, map.points]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -271,126 +661,87 @@ const Heatmap2DPanel: React.FC<{
     }
 
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.clearRect(0, 0, width, height);
+    pointPixelsRef.current = drawHeatField(ctx, map, grid, width, height, SCREEN_LAYOUT, activeIndex);
+  }, [activeIndex, grid, map]);
 
-    const background = ctx.createLinearGradient(0, 0, width, height);
-    background.addColorStop(0, "#f7fbff");
-    background.addColorStop(0.55, "#fdfefd");
-    background.addColorStop(1, "#fff9f1");
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, width, height);
-
-    if (!map || !grid) {
-      ctx.fillStyle = "rgba(71,85,105,0.92)";
-      ctx.font = "600 14px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("拖拽 CSV 文件到页面后生成 2D 图", width / 2, height / 2);
-      return;
+  const pickNearestIndex = (clientX: number, clientY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return null;
     }
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
 
-    const padLeft = 52;
-    const padRight = 30;
-    const padTop = 26;
-    const padBottom = 42;
-    const plotW = width - padLeft - padRight;
-    const plotH = height - padTop - padBottom;
-
-    const imageData = ctx.createImageData(grid.width, grid.height);
-    for (let i = 0; i < grid.values.length; i += 1) {
-      const v = grid.values[i];
-      const pixel = i * 4;
-      if (!Number.isFinite(v)) {
-        imageData.data[pixel + 3] = 0;
-        continue;
+    let nearest: { index: number; dist: number } | null = null;
+    pointPixelsRef.current.forEach((point) => {
+      const dist = Math.hypot(point.x - x, point.y - y);
+      if (dist > 10) {
+        return;
       }
-      const color = jetColor(ratioOfZ(v, grid.min, grid.max));
-      imageData.data[pixel] = color.r;
-      imageData.data[pixel + 1] = color.g;
-      imageData.data[pixel + 2] = color.b;
-      imageData.data[pixel + 3] = 236;
-    }
+      if (!nearest || dist < nearest.dist) {
+        nearest = { index: point.index, dist };
+      }
+    });
 
-    const offscreen = document.createElement("canvas");
-    offscreen.width = grid.width;
-    offscreen.height = grid.height;
-    const offCtx = offscreen.getContext("2d");
-    if (!offCtx) {
-      return;
-    }
-    offCtx.putImageData(imageData, 0, 0);
-
-    ctx.save();
-    ctx.globalAlpha = 0.94;
-    ctx.drawImage(offscreen, padLeft, padTop, plotW, plotH);
-    ctx.restore();
-
-    for (let t = 0; t <= 7; t += 1) {
-      const y = padTop + (plotH / 7) * t;
-      ctx.strokeStyle = "rgba(120, 130, 150, 0.2)";
-      ctx.lineWidth = 0.7;
-      ctx.beginPath();
-      ctx.moveTo(padLeft, y);
-      ctx.lineTo(padLeft + plotW, y);
-      ctx.stroke();
-    }
-    for (let t = 0; t <= 7; t += 1) {
-      const x = padLeft + (plotW / 7) * t;
-      ctx.strokeStyle = "rgba(120, 130, 150, 0.2)";
-      ctx.lineWidth = 0.7;
-      ctx.beginPath();
-      ctx.moveTo(x, padTop);
-      ctx.lineTo(x, padTop + plotH);
-      ctx.stroke();
-    }
-
-    const xToPx = (x: number) => padLeft + ((x - map.bounds.minX) / map.bounds.spanX) * plotW;
-    const yToPx = (y: number) => padTop + ((map.bounds.maxY - y) / map.bounds.spanY) * plotH;
-
-    if (showPointValues) {
-      map.points.forEach((point) => {
-        const ratio = ratioOfZ(point.z, map.bounds.minZ, map.bounds.maxZ);
-        const color = jetColor(ratio);
-        const px = xToPx(point.x);
-        const py = yToPx(point.y);
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.95)`;
-        ctx.arc(px, py, 2.7, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.strokeStyle = "rgba(255,255,255,0.75)";
-        ctx.lineWidth = 0.7;
-        ctx.arc(px, py, 2.7, 0, Math.PI * 2);
-        ctx.stroke();
-
-        ctx.font = "600 10px sans-serif";
-        ctx.textAlign = "left";
-        ctx.lineWidth = 2.4;
-        ctx.strokeStyle = "rgba(255,255,255,0.95)";
-        const text = point.z.toFixed(4);
-        ctx.strokeText(text, px + 4, py - 4);
-        ctx.fillStyle = "rgba(22, 31, 49, 0.9)";
-        ctx.fillText(text, px + 4, py - 4);
-      });
-    }
-
-    ctx.strokeStyle = "rgba(40, 53, 75, 0.55)";
-    ctx.lineWidth = 1.1;
-    ctx.strokeRect(padLeft, padTop, plotW, plotH);
-
-    ctx.fillStyle = "rgba(39,53,75,0.82)";
-    ctx.font = "600 11px sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(`${grid.max.toFixed(4)} max`, padLeft + 6, padTop + 14);
-    ctx.textAlign = "right";
-    ctx.fillText(`${grid.min.toFixed(4)} min`, padLeft + plotW - 6, padTop + 14);
-  }, [map, grid, showPointValues]);
+    return nearest?.index ?? null;
+  };
 
   return (
-    <div className="rounded-2xl border border-input bg-card/85 p-4 shadow-sm">
+    <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="truncate text-sm font-semibold text-foreground">{map?.fileName ?? "2D Heat Map"}</h3>
+        <h3 className="truncate text-sm font-semibold text-foreground">{map.fileName}</h3>
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className="h-8 w-8"
+          disabled={isDownloading}
+          onClick={() => {
+            void onDownload();
+          }}
+          title="Download PNG"
+        >
+          <Download className="h-4 w-4" />
+        </Button>
       </div>
-      <canvas ref={canvasRef} className="h-[360px] w-full rounded-xl border border-input/80 bg-background/60" />
+
+      <div className="relative">
+        <canvas
+          ref={canvasRef}
+          className="h-[350px] w-full rounded-xl border border-input/80 bg-background/60"
+          onMouseMove={(event) => setHoveredIndex(pickNearestIndex(event.clientX, event.clientY))}
+          onMouseLeave={() => setHoveredIndex(null)}
+          onClick={(event) => {
+            const picked = pickNearestIndex(event.clientX, event.clientY);
+            setSelectedIndex((prev) => (prev === picked ? null : picked));
+          }}
+        />
+
+        {activePayload && (
+          <div
+            className="pointer-events-none absolute z-10 rounded-lg border border-sky-200 bg-white/96 px-2 py-1 text-[11px] shadow-md"
+            style={{
+              left: `${clamp(activePayload.x + 10, 4, 280)}px`,
+              top: `${clamp(activePayload.y - 56, 4, 320)}px`,
+            }}
+          >
+            <div className="font-semibold text-slate-800">Point #{activePayload.index + 1}</div>
+            <div className="text-slate-600">X: {fmt2(activePayload.point.x)}</div>
+            <div className="text-slate-600">Y: {fmt2(activePayload.point.y)}</div>
+            <div className="text-slate-600">Z: {fmt2(activePayload.point.z)}</div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
+        {buildStatsRows(stats).map((row) => (
+          <div key={row.label} className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
+            <div className="text-[11px] text-slate-500">{row.label}</div>
+            <div className="mt-1 font-semibold text-slate-900">{row.value}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -631,10 +982,11 @@ const IbeThicknessView: React.FC = () => {
 
   const [maps, setMaps] = useState<ParsedIbeMap[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [showPointValues, setShowPointValues] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [draggingGlobal, setDraggingGlobal] = useState(false);
+  const [downloadingSingleId, setDownloadingSingleId] = useState<string | null>(null);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const dragDepthRef = useRef(0);
 
   const selectedMaps = useMemo(
@@ -646,6 +998,14 @@ const IbeThicknessView: React.FC = () => {
     const entries = new Map<string, HeatGrid>();
     selectedMaps.forEach((map) => {
       entries.set(map.id, buildHeatGrid(map, GRID_2D));
+    });
+    return entries;
+  }, [selectedMaps]);
+
+  const statsMap = useMemo(() => {
+    const entries = new Map<string, TopographyStats>();
+    selectedMaps.forEach((map) => {
+      entries.set(map.id, computeStats(map.points));
     });
     return entries;
   }, [selectedMaps]);
@@ -755,87 +1115,159 @@ const IbeThicknessView: React.FC = () => {
     };
   }, []);
 
+  const handleDownloadSingle = async (map: ParsedIbeMap) => {
+    const grid = grid2DMap.get(map.id);
+    const stats = statsMap.get(map.id);
+    if (!grid || !stats) {
+      return;
+    }
+
+    try {
+      setDownloadingSingleId(map.id);
+      const blob = await createPngWithMetrics(map, grid, stats);
+      downloadBlob(blob, `${sanitizeName(map.fileName.replace(/\.csv$/i, ""))}_topography.png`);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "Failed to download PNG.");
+    } finally {
+      setDownloadingSingleId(null);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    if (selectedMaps.length === 0 || downloadingAll) {
+      return;
+    }
+
+    try {
+      setDownloadingAll(true);
+      const entries: PngEntry[] = [];
+      for (const map of selectedMaps) {
+        const grid = grid2DMap.get(map.id);
+        const stats = statsMap.get(map.id);
+        if (!grid || !stats) {
+          continue;
+        }
+        const blob = await createPngWithMetrics(map, grid, stats);
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        entries.push({
+          name: `${sanitizeName(map.fileName.replace(/\.csv$/i, ""))}_topography.png`,
+          bytes,
+        });
+      }
+
+      if (entries.length === 0) {
+        setError("No valid maps available for download.");
+        return;
+      }
+
+      const zipBytes = buildZip(entries);
+      downloadBlob(new Blob([zipBytes], { type: "application/zip" }), "ibe-topography-maps.zip");
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "Failed to generate ZIP package.");
+    } finally {
+      setDownloadingAll(false);
+    }
+  };
+
   return (
-    <div className="relative mx-auto flex h-full w-full max-w-[1500px] flex-col gap-5 p-6">
+    <div className="relative mx-auto flex h-full w-full max-w-[1580px] flex-col gap-5 p-6">
       {draggingGlobal && (
         <div className="pointer-events-none absolute inset-4 z-20 rounded-2xl border-2 border-dashed border-primary bg-primary/10" />
       )}
 
-      <div className="grid h-full min-h-0 grid-cols-1 gap-5 xl:grid-cols-[320px_1fr]">
-        <div className="flex min-h-0 flex-col gap-4">
-          <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-foreground">Data Input</h2>
-            <p className="mt-2 text-xs text-muted-foreground">将 CSV 文件拖拽到页面任意位置即可上传，支持一次拖入多个文件。</p>
-            {loading && <p className="mt-2 text-xs text-muted-foreground">Parsing file...</p>}
-            {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-          </div>
-        </div>
-
-        <div className="grid min-h-0 grid-cols-1 gap-5">
-          <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-foreground">2D Heat Maps</h2>
-                <p className="text-xs text-muted-foreground">已选 {selectedMaps.length} 个文件，可多选同屏查看</p>
-              </div>
-              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                <Checkbox checked={showPointValues} onCheckedChange={(checked) => setShowPointValues(Boolean(checked))} />
-                圆点+Z值
-              </label>
-            </div>
-            <div className="mb-4 overflow-x-auto pb-1">
-              <div className="flex min-w-max items-center gap-2">
-                {maps.length === 0 && <p className="text-xs text-muted-foreground">暂无文件，先拖拽 CSV 文件到页面。</p>}
-                {maps.map((map) => {
-                  const selected = selectedIds.includes(map.id);
-                  return (
-                    <Button
-                      key={map.id}
-                      size="sm"
-                      variant={selected ? "default" : "outline"}
-                      className={cn("h-8 px-3", selected && "bg-primary text-primary-foreground hover:bg-primary/90")}
-                      onClick={() => {
-                        setSelectedIds((prev) => {
-                          if (prev.includes(map.id)) {
-                            const filtered = prev.filter((id) => id !== map.id);
-                            return filtered.length > 0 ? filtered : prev;
-                          }
-                          return [...prev, map.id];
-                        });
-                      }}
-                    >
-                      <span className="max-w-[220px] truncate">{map.fileName}</span>
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-            {selectedMaps.length === 0 && <p className="text-xs text-muted-foreground">请先选择至少一个文件用于 2D 展示。</p>}
-            {selectedMaps.length > 0 && (
-              <div
-                className={cn(
-                  "grid gap-4",
-                  selectedMaps.length === 1 && "grid-cols-1",
-                  selectedMaps.length === 2 && "grid-cols-1 lg:grid-cols-2",
-                  selectedMaps.length === 3 && "grid-cols-1 md:grid-cols-2 2xl:grid-cols-3",
-                  selectedMaps.length >= 4 && "grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
-                )}
-              >
-                {selectedMaps.map((map) => (
-                  <Heatmap2DPanel
-                    key={map.id}
-                    map={map}
-                    grid={grid2DMap.get(map.id) ?? null}
-                    showPointValues={showPointValues}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          <Surface3D map={primaryMap} grid={grid3D} />
-        </div>
+      <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
+        <h2 className="text-sm font-semibold text-foreground">Data Input</h2>
+        <p className="mt-2 text-xs text-muted-foreground">将 CSV 文件拖拽到页面任意位置即可上传，支持一次拖入多个文件。</p>
+        {loading && <p className="mt-2 text-xs text-muted-foreground">Parsing file...</p>}
+        {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
       </div>
+
+      <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">2D Heat Maps</h2>
+            <p className="text-xs text-muted-foreground">Selected {selectedMaps.length} files, multi-panel adaptive layout</p>
+          </div>
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="h-9 w-9 border-sky-300 text-sky-700 hover:bg-sky-50"
+            onClick={() => {
+              void handleDownloadAll();
+            }}
+            disabled={downloadingAll || selectedMaps.length === 0}
+            title="Download all selected maps"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {maps.length === 0 && <p className="text-xs text-muted-foreground">暂无文件，先拖拽 CSV 文件到页面。</p>}
+          {maps.map((map, index) => {
+            const selected = selectedIds.includes(map.id);
+            return (
+              <Button
+                key={map.id}
+                size="sm"
+                variant="outline"
+                className={cn(
+                  "h-9 rounded-xl border px-3 text-xs shadow-sm transition",
+                  selected
+                    ? FILE_BUTTON_THEMES[index % FILE_BUTTON_THEMES.length]
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                )}
+                onClick={() => {
+                  setSelectedIds((prev) => {
+                    if (prev.includes(map.id)) {
+                      const filtered = prev.filter((id) => id !== map.id);
+                      return filtered.length > 0 ? filtered : prev;
+                    }
+                    return [...prev, map.id];
+                  });
+                }}
+              >
+                <span className="max-w-[230px] truncate">{map.fileName}</span>
+              </Button>
+            );
+          })}
+        </div>
+
+        {selectedMaps.length === 0 && <p className="text-xs text-muted-foreground">请先选择至少一个文件用于 2D 展示。</p>}
+        {selectedMaps.length > 0 && (
+          <div
+            className={cn(
+              "grid gap-4",
+              selectedMaps.length === 1 && "grid-cols-1",
+              selectedMaps.length === 2 && "grid-cols-1 xl:grid-cols-2",
+              (selectedMaps.length === 3 || selectedMaps.length === 4) && "grid-cols-1 lg:grid-cols-2",
+              (selectedMaps.length === 5 || selectedMaps.length === 6) && "grid-cols-1 md:grid-cols-2 2xl:grid-cols-3",
+              selectedMaps.length >= 7 && "grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
+            )}
+          >
+            {selectedMaps.map((map) => {
+              const grid = grid2DMap.get(map.id);
+              const stats = statsMap.get(map.id);
+              if (!grid || !stats) {
+                return null;
+              }
+              return (
+                <Heatmap2DPanel
+                  key={map.id}
+                  map={map}
+                  grid={grid}
+                  stats={stats}
+                  isDownloading={downloadingSingleId === map.id}
+                  onDownload={() => handleDownloadSingle(map)}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <Surface3D map={primaryMap} grid={grid3D} />
     </div>
   );
 };
