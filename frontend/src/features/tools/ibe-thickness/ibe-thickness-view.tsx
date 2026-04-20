@@ -79,7 +79,7 @@ type PngEntry = {
 const EPSILON = 1e-6;
 const GRID_2D = 170;
 const GRID_3D = 64;
-const DEFAULT_CAMERA: Camera = { rotX: -0.88, rotY: 0.16, zoom: 1.18 };
+const DEFAULT_CAMERA: Camera = { rotX: -1.02, rotY: 0.96, zoom: 1.16 };
 const SCREEN_LAYOUT = { padLeft: 48, padRight: 22, padTop: 18, padBottom: 28 };
 const EXPORT_LAYOUT = { padLeft: 106, padRight: 52, padTop: 54, padBottom: 64 };
 const FILE_BUTTON_THEMES = [
@@ -873,8 +873,8 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
       const rx = x * cosY + z * sinY;
       const rz = -x * sinY + z * cosY;
 
-      const ry = y * cosX - rz * sinX;
-      const rz2 = y * sinX + rz * cosX;
+      const ry = y * cosX + rz * sinX;
+      const rz2 = -y * sinX + rz * cosX;
 
       const dist = 3.7;
       const perspective = dist / (dist + rz2 + 1.45);
