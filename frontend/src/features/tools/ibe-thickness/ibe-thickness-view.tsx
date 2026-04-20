@@ -800,6 +800,27 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     if (!canvas) {
       return;
     }
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setCamera((prev) => ({
+        ...prev,
+        zoom: clamp(prev.zoom + (event.deltaY > 0 ? -0.05 : 0.05), 0.72, 2.2),
+      }));
+    };
+
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      canvas.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
     const ratio = window.devicePixelRatio || 1;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
@@ -1084,7 +1105,7 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
       </div>
       <canvas
         ref={canvasRef}
-        className="h-[430px] w-full cursor-grab rounded-xl border border-input/80 bg-background/60 active:cursor-grabbing"
+        className="h-[430px] w-full cursor-grab rounded-xl border border-input/80 bg-background/60 [touch-action:none] active:cursor-grabbing"
         onMouseDown={(event) => {
           dragRef.current = { active: true, x: event.clientX, y: event.clientY };
         }}
@@ -1107,14 +1128,6 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
         }}
         onMouseLeave={() => {
           dragRef.current.active = false;
-        }}
-        onWheel={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          setCamera((prev) => ({
-            ...prev,
-            zoom: clamp(prev.zoom + (event.deltaY > 0 ? -0.05 : 0.05), 0.72, 2.2),
-          }));
         }}
       />
     </div>
