@@ -56,7 +56,8 @@ const IndexView: React.FC = () => {
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {tools.map((tool) => {
           const iconTheme = getToolIconTheme(tool.id);
-          const showBrandLogo = tool.category === "Wafer工具" || tool.id === "csv-test-merge";
+          const showBrandLogo =
+            tool.category === "Wafer工具" || tool.id === "csv-test-merge" || tool.id === "cp-histogram";
           return (
             <Link
               key={tool.id}

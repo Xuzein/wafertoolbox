@@ -233,7 +233,7 @@ const normalizeSpecValue = (value: number | null): number | null => {
     return null;
   }
   // Common sentinel values in summary CSV for "no spec"
-  if (Math.abs(value) >= 9000) {
+  if (Math.abs(value) >= 9000 || Math.abs(value) < 1e-12) {
     return null;
   }
   return value;
@@ -462,7 +462,7 @@ const HistogramCard: React.FC<{
       datasets: [
         {
           label: "数量",
-          data: histogram.map((bin) => ({ x: bin.center, y: bin.count })),
+          data: histogram.map((bin) => ({ x: bin.center, y: bin.count, left: bin.left, right: bin.right })),
           backgroundColor: (context: { chart: ChartJS<"bar"> }) => {
             const chart = context.chart;
             const { chartArea, ctx } = chart;
@@ -509,7 +509,14 @@ const HistogramCard: React.FC<{
           borderWidth: 1,
           padding: 10,
           callbacks: {
-            label: (context) => `数量: ${context.parsed.y}`,
+            label: (context) => {
+              const raw = context.raw as { left?: number; right?: number };
+              const rangeText =
+                raw && Number.isFinite(raw.left) && Number.isFinite(raw.right)
+                  ? `区间: ${fmt(raw.left as number, 2)} ~ ${fmt(raw.right as number, 2)}`
+                  : "";
+              return [`数量: ${context.parsed.y}`, rangeText].filter(Boolean);
+            },
             title: (items) => {
               const center = items[0]?.parsed.x;
               return Number.isFinite(center) ? `X: ${fmt(center, 2)}` : "";
@@ -630,6 +637,221 @@ const HistogramCard: React.FC<{
       >
         {values.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">当前范围内无数据</div>
+        ) : (
+          <Bar data={chartData} options={chartOptions} />
+        )}
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+        <span>x-min: {xMin === null ? "-" : fmt(xMin, 2)}</span>
+        <span>x-max: {xMax === null ? "-" : fmt(xMax, 2)}</span>
+        <span>LSL: {specLower === null ? "-" : fmt(specLower, 2)}</span>
+        <span>USL: {specUpper === null ? "-" : fmt(specUpper, 2)}</span>
+        {!hasSpecLine && <span className="text-amber-700">该测试项缺少 spec，未绘制虚线</span>}
+      </div>
+    </div>
+  );
+};
+
+const BatchHistogramCard: React.FC<{
+  testItem: string;
+  values: number[];
+  specLower: number | null;
+  specUpper: number | null;
+  waferCount: number;
+}> = ({ testItem, values, specLower, specUpper, waferCount }) => {
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const histogram = useMemo(() => buildHistogram(values), [values]);
+  const stats = useMemo(() => calcStats(values), [values]);
+
+  const xMin = values.length > 0 ? Math.min(...values) : null;
+  const xMax = values.length > 0 ? Math.max(...values) : null;
+  const hasSpecLine = (specLower !== null && Number.isFinite(specLower)) || (specUpper !== null && Number.isFinite(specUpper));
+  const palette = HISTOGRAM_PALETTES[0];
+
+  const xDomain = useMemo(() => {
+    if (values.length === 0) {
+      return { min: undefined, max: undefined } as { min: number | undefined; max: number | undefined };
+    }
+    const nums = [...values];
+    if (specLower !== null && Number.isFinite(specLower)) {
+      nums.push(specLower);
+    }
+    if (specUpper !== null && Number.isFinite(specUpper)) {
+      nums.push(specUpper);
+    }
+    return {
+      min: Math.min(...nums),
+      max: Math.max(...nums),
+    };
+  }, [specLower, specUpper, values]);
+
+  const chartData = useMemo(
+    () => ({
+      datasets: [
+        {
+          label: "数量",
+          data: histogram.map((bin) => ({ x: bin.center, y: bin.count, left: bin.left, right: bin.right })),
+          backgroundColor: (context: { chart: ChartJS<"bar"> }) => {
+            const chart = context.chart;
+            const { chartArea, ctx } = chart;
+            if (!chartArea) {
+              return palette.from;
+            }
+            const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+            gradient.addColorStop(0, palette.from);
+            gradient.addColorStop(1, palette.to);
+            return gradient;
+          },
+          borderColor: palette.border,
+          borderWidth: 1,
+          hoverBackgroundColor: palette.border,
+          borderRadius: 2,
+          categoryPercentage: 1,
+          barPercentage: 1,
+        },
+      ],
+    }),
+    [histogram, palette.border, palette.from, palette.to],
+  );
+
+  const chartOptions = useMemo<ChartOptions<"bar">>(
+    () => ({
+      animation: {
+        duration: 220,
+        easing: "easeOutQuart",
+      },
+      responsive: true,
+      maintainAspectRatio: false,
+      parsing: false,
+      interaction: {
+        mode: "nearest",
+        intersect: false,
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "rgba(15, 23, 42, 0.92)",
+          titleColor: "#fff",
+          bodyColor: "#e2e8f0",
+          borderColor: "rgba(148, 163, 184, 0.35)",
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: (context) => {
+              const raw = context.raw as { left?: number; right?: number };
+              const rangeText =
+                raw && Number.isFinite(raw.left) && Number.isFinite(raw.right)
+                  ? `区间: ${fmt(raw.left as number, 2)} ~ ${fmt(raw.right as number, 2)}`
+                  : "";
+              return [`数量: ${context.parsed.y}`, rangeText].filter(Boolean);
+            },
+            title: (items) => {
+              const center = items[0]?.parsed.x;
+              return Number.isFinite(center) ? `X: ${fmt(center, 2)}` : "";
+            },
+          },
+        },
+        cpHistogramSpecLines: {
+          lower: specLower,
+          upper: specUpper,
+        },
+      },
+      scales: {
+        x: {
+          type: "linear",
+          min: xDomain.min,
+          max: xDomain.max,
+          title: {
+            display: true,
+            text: "测试值",
+          },
+          grid: {
+            color: "rgba(148,163,184,0.14)",
+          },
+          ticks: {
+            callback: (value) => {
+              const parsed = Number(value);
+              if (!Number.isFinite(parsed)) {
+                return "";
+              }
+              return parsed.toFixed(2);
+            },
+          },
+        },
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "数量",
+          },
+          grid: {
+            color: "rgba(148,163,184,0.14)",
+          },
+          ticks: {
+            precision: 0,
+          },
+        },
+      },
+    }),
+    [specLower, specUpper, xDomain.max, xDomain.min],
+  );
+
+  return (
+    <div className="app-surface p-4">
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">批次汇总直方图</h3>
+          <p className="mt-1 text-xs text-muted-foreground">测试项：{testItem} · 覆盖 {waferCount} 片</p>
+        </div>
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className="h-7 w-7 border-input bg-background/85 text-muted-foreground hover:bg-muted hover:text-foreground"
+          onClick={() => {
+            const canvas = chartContainerRef.current?.querySelector("canvas");
+            if (!canvas) {
+              return;
+            }
+            const link = document.createElement("a");
+            link.href = canvas.toDataURL("image/png");
+            const safeItem = testItem.replace(/[^\w.-]+/g, "_");
+            link.download = `batch_summary_${safeItem}_histogram.png`;
+            link.click();
+          }}
+          title="下载汇总图"
+          aria-label="下载汇总图"
+        >
+          <Download className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+          <div className="text-muted-foreground">片数</div>
+          <div className="mt-0.5 font-semibold text-foreground">{waferCount}</div>
+        </div>
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+          <div className="text-muted-foreground">数量</div>
+          <div className="mt-0.5 font-semibold text-foreground">{stats.count}</div>
+        </div>
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+          <div className="text-muted-foreground">平均数</div>
+          <div className="mt-0.5 font-semibold text-foreground">{fmt(stats.mean, 2)}</div>
+        </div>
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+          <div className="text-muted-foreground">方差</div>
+          <div className="mt-0.5 font-semibold text-foreground">{fmt(stats.variance, 2)}</div>
+        </div>
+      </div>
+
+      <div
+        ref={chartContainerRef}
+        className="relative h-[300px] rounded-lg border border-input bg-gradient-to-b from-background to-muted/35 p-2"
+      >
+        {values.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">当前范围内无汇总数据</div>
         ) : (
           <Bar data={chartData} options={chartOptions} />
         )}
@@ -779,6 +1001,16 @@ const CpHistogramView: React.FC = () => {
     });
     return entries;
   }, [rangeFilter, selectedFiles, selectedTestItem]);
+
+  const allUploadedFilteredValues = useMemo(() => {
+    return files.flatMap((file) => {
+      const rawValues = file.testData[selectedTestItem] ?? [];
+      if (!rangeFilter) {
+        return rawValues;
+      }
+      return rawValues.filter((value) => value >= rangeFilter.lower && value <= rangeFilter.upper);
+    });
+  }, [files, rangeFilter, selectedTestItem]);
 
   const allFilteredValues = useMemo(() => {
     return selectedFiles.flatMap((file) => filteredValuesByFile.get(file.id) ?? []);
@@ -1126,6 +1358,18 @@ const CpHistogramView: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {files.length > 0 && selectedTestItem && (
+          <div className="col-span-full">
+            <BatchHistogramCard
+              testItem={selectedTestItem}
+              values={allUploadedFilteredValues}
+              specLower={toNumber(currentOverride.lower) ?? defaultSpec.lower}
+              specUpper={toNumber(currentOverride.upper) ?? defaultSpec.upper}
+              waferCount={files.length}
+            />
+          </div>
+        )}
+
         {selectedFiles.length === 0 && (
           <div className="app-surface col-span-full p-6 text-sm text-muted-foreground">请先上传并选中至少一个文件。</div>
         )}
@@ -1138,8 +1382,8 @@ const CpHistogramView: React.FC = () => {
               file={file}
               testItem={selectedTestItem}
               values={values}
-              overrideSpecLower={toNumber(currentOverride.lower)}
-              overrideSpecUpper={toNumber(currentOverride.upper)}
+              overrideSpecLower={normalizeSpecValue(toNumber(currentOverride.lower))}
+              overrideSpecUpper={normalizeSpecValue(toNumber(currentOverride.upper))}
               paletteIndex={files.findIndex((item) => item.id === file.id)}
             />
           );
