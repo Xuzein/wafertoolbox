@@ -3,7 +3,9 @@ import {
   BarElement,
   Chart as ChartJS,
   Legend,
+  LineElement,
   LinearScale,
+  PointElement,
   Tooltip,
   type ChartOptions,
   type Plugin,
@@ -161,7 +163,7 @@ const SPEC_LINE_PLUGIN: Plugin<"bar", SpecLinePluginOptions> = {
   },
 };
 
-ChartJS.register(BarElement, LinearScale, Tooltip, Legend, SPEC_LINE_PLUGIN);
+ChartJS.register(BarElement, LineElement, PointElement, LinearScale, Tooltip, Legend, SPEC_LINE_PLUGIN);
 
 const fmt = (value: number, digits = 2) => value.toFixed(digits);
 
@@ -421,6 +423,24 @@ const buildHistogram = (values: number[]): HistogramBin[] => {
   });
 };
 
+const buildTrendPoints = (bins: HistogramBin[]) => {
+  if (bins.length === 0) {
+    return [] as Array<{ x: number; y: number }>;
+  }
+  const windowRadius = 2;
+  return bins.map((bin, index) => {
+    const start = Math.max(0, index - windowRadius);
+    const end = Math.min(bins.length - 1, index + windowRadius);
+    const count = end - start + 1;
+    const avg =
+      bins.slice(start, end + 1).reduce((sum, item) => sum + item.count, 0) / count;
+    return {
+      x: bin.center,
+      y: avg,
+    };
+  });
+};
+
 const HistogramCard: React.FC<{
   file: ParsedCpHistogramFile;
   testItem: string;
@@ -662,6 +682,7 @@ const BatchHistogramCard: React.FC<{
 }> = ({ testItem, values, specLower, specUpper, waferCount }) => {
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const histogram = useMemo(() => buildHistogram(values), [values]);
+  const trendPoints = useMemo(() => buildTrendPoints(histogram), [histogram]);
   const stats = useMemo(() => calcStats(values), [values]);
 
   const xMin = values.length > 0 ? Math.min(...values) : null;
@@ -710,9 +731,21 @@ const BatchHistogramCard: React.FC<{
           categoryPercentage: 1,
           barPercentage: 1,
         },
+        {
+          type: "line",
+          label: "趋势线",
+          data: trendPoints,
+          parsing: false,
+          borderColor: "rgba(220,38,38,0.95)",
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 2,
+          tension: 0.35,
+          fill: false,
+        },
       ],
     }),
-    [histogram, palette.border, palette.from, palette.to],
+    [histogram, palette.border, palette.from, palette.to, trendPoints],
   );
 
   const chartOptions = useMemo<ChartOptions<"bar">>(
@@ -1064,7 +1097,11 @@ const CpHistogramView: React.FC = () => {
         .map((result) => (result.reason instanceof Error ? result.reason.message : "CSV 解析失败"));
 
       if (success.length > 0) {
-        setFiles((prev) => [...prev, ...success]);
+        setFiles((prev) => {
+          const next = [...prev, ...success];
+          setSelectedFileIds(next.map((item) => item.id));
+          return next;
+        });
         setNotice(`成功导入 ${success.length} 个文件`);
       }
       if (failed.length > 0) {
