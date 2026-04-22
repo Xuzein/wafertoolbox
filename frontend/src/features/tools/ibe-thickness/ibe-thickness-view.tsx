@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppTitle } from "@/components/layout/app-title-context";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Download, RotateCcw } from "lucide-react";
+import { Download, RotateCcw, X } from "lucide-react";
 import { Environment } from "@wailsjs/runtime/runtime";
 
 type ThicknessPoint = {
@@ -649,6 +649,7 @@ const Heatmap2DPanel: React.FC<{
 }> = ({ map, grid, stats, hidePoints, onDownload, isDownloading }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pointPixelsRef = useRef<ScreenPoint[]>([]);
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
@@ -671,9 +672,41 @@ const Heatmap2DPanel: React.FC<{
     if (!canvas) {
       return;
     }
+
+    const syncCanvasSize = () => {
+      const width = Math.floor(canvas.clientWidth);
+      const height = Math.floor(canvas.clientHeight);
+      setCanvasSize((prev) => {
+        if (prev.width === width && prev.height === height) {
+          return prev;
+        }
+        return { width, height };
+      });
+    };
+
+    syncCanvasSize();
+    const observer = new ResizeObserver(syncCanvasSize);
+    observer.observe(canvas);
+    window.addEventListener("resize", syncCanvasSize);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", syncCanvasSize);
+    };
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) {
+      return;
+    }
+
     const ratio = window.devicePixelRatio || 1;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
+    const width = canvasSize.width;
+    const height = canvasSize.height;
     canvas.width = Math.floor(width * ratio);
     canvas.height = Math.floor(height * ratio);
 
@@ -693,7 +726,7 @@ const Heatmap2DPanel: React.FC<{
       !hidePoints,
       hidePoints ? null : activeIndex,
     );
-  }, [activeIndex, grid, hidePoints, map]);
+  }, [activeIndex, canvasSize.height, canvasSize.width, grid, hidePoints, map]);
 
   useEffect(() => {
     if (hidePoints) {
@@ -702,7 +735,7 @@ const Heatmap2DPanel: React.FC<{
     }
   }, [hidePoints]);
 
-  const pickNearestIndex = (clientX: number, clientY: number) => {
+  const pickNearestIndex = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (hidePoints) {
       return null;
     }
@@ -711,8 +744,8 @@ const Heatmap2DPanel: React.FC<{
       return null;
     }
     const rect = canvas.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
 
     let nearest: { index: number; dist: number } | null = null;
     pointPixelsRef.current.forEach((point) => {
@@ -732,19 +765,34 @@ const Heatmap2DPanel: React.FC<{
     <div className="app-surface p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="truncate text-sm font-semibold text-foreground">{map.fileName}</h3>
-        <Button
-          type="button"
-          size="icon"
-          variant="outline"
-          className="h-8 w-8 border-input bg-background/80 text-muted-foreground hover:bg-muted"
-          disabled={isDownloading}
-          onClick={() => {
-            void onDownload();
-          }}
-          title="下载 PNG"
-        >
-          <Download className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 border-input bg-background/80 px-2 text-xs text-muted-foreground hover:bg-muted"
+            disabled={selectedIndex === null && hoveredIndex === null}
+            onClick={() => {
+              setSelectedIndex(null);
+              setHoveredIndex(null);
+            }}
+          >
+            清除
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 border-input bg-background/80 text-muted-foreground hover:bg-muted"
+            disabled={isDownloading}
+            onClick={() => {
+              void onDownload();
+            }}
+            title="下载 PNG"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_168px] gap-3">
@@ -752,10 +800,10 @@ const Heatmap2DPanel: React.FC<{
           <canvas
             ref={canvasRef}
             className="aspect-square w-full rounded-lg border border-input bg-muted/25"
-            onMouseMove={(event) => setHoveredIndex(pickNearestIndex(event.clientX, event.clientY))}
+            onMouseMove={(event) => setHoveredIndex(pickNearestIndex(event))}
             onMouseLeave={() => setHoveredIndex(null)}
             onClick={(event) => {
-              const picked = pickNearestIndex(event.clientX, event.clientY);
+              const picked = pickNearestIndex(event);
               setSelectedIndex((prev) => (prev === picked ? null : picked));
             }}
           />
@@ -764,8 +812,8 @@ const Heatmap2DPanel: React.FC<{
           <div
             className="pointer-events-none absolute z-10 rounded-lg border border-chart-2/30 bg-card/95 px-2 py-1 text-[11px] shadow-md"
             style={{
-              left: `${clamp(activePayload.x + 10, 4, 280)}px`,
-              top: `${clamp(activePayload.y - 56, 4, 320)}px`,
+              left: `${clamp(activePayload.x + 10, 4, Math.max(4, canvasSize.width - 164))}px`,
+              top: `${clamp(activePayload.y - 56, 4, Math.max(4, canvasSize.height - 82))}px`,
             }}
           >
             <div className="font-semibold text-foreground">点位 #{activePayload.index + 1}</div>
@@ -1164,17 +1212,31 @@ const mergeMaps = (prev: ParsedIbeMap[], incoming: ParsedIbeMap[]) => {
   return Array.from(merged.values());
 };
 
+type IbeThicknessViewCache = {
+  maps: ParsedIbeMap[];
+  selectedIds: string[];
+  hidePoints: boolean;
+};
+
+const defaultIbeThicknessViewCache: IbeThicknessViewCache = {
+  maps: [],
+  selectedIds: [],
+  hidePoints: false,
+};
+
+let ibeThicknessViewCache: IbeThicknessViewCache = defaultIbeThicknessViewCache;
+
 const IbeThicknessView: React.FC = () => {
   useAppTitle({ title: "Wafer Topography" });
 
-  const [maps, setMaps] = useState<ParsedIbeMap[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [maps, setMaps] = useState<ParsedIbeMap[]>(ibeThicknessViewCache.maps);
+  const [selectedIds, setSelectedIds] = useState<string[]>(ibeThicknessViewCache.selectedIds);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [downloadNotice, setDownloadNotice] = useState("");
   const [runtimePlatform, setRuntimePlatform] = useState("darwin");
   const [draggingGlobal, setDraggingGlobal] = useState(false);
-  const [hidePoints, setHidePoints] = useState(false);
+  const [hidePoints, setHidePoints] = useState(ibeThicknessViewCache.hidePoints);
   const [downloadingSingleId, setDownloadingSingleId] = useState<string | null>(null);
   const [downloadingAll, setDownloadingAll] = useState(false);
   const dragDepthRef = useRef(0);
@@ -1183,6 +1245,14 @@ const IbeThicknessView: React.FC = () => {
     () => selectedIds.map((id) => maps.find((map) => map.id === id)).filter((map): map is ParsedIbeMap => Boolean(map)),
     [maps, selectedIds],
   );
+
+  useEffect(() => {
+    ibeThicknessViewCache = {
+      maps,
+      selectedIds,
+      hidePoints,
+    };
+  }, [hidePoints, maps, selectedIds]);
 
   const grid2DMap = useMemo(() => {
     const entries = new Map<string, HeatGrid>();
@@ -1374,6 +1444,17 @@ const IbeThicknessView: React.FC = () => {
     }
   };
 
+  const handleRemoveMap = (mapId: string) => {
+    setMaps((prev) => prev.filter((item) => item.id !== mapId));
+  };
+
+  const handleClearAllMaps = () => {
+    setMaps([]);
+    setSelectedIds([]);
+    setError("");
+    setDownloadNotice("");
+  };
+
   return (
     <div className="relative mx-auto flex h-full w-full max-w-[1580px] flex-col gap-5 p-6">
       {draggingGlobal && (
@@ -1395,6 +1476,16 @@ const IbeThicknessView: React.FC = () => {
             <p className="app-subtitle">已选 {selectedMaps.length} 个文件，多面板自适应布局</p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg border-input bg-background text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={handleClearAllMaps}
+              disabled={maps.length === 0}
+            >
+              清除全部
+            </Button>
             <Button
               type="button"
               size="sm"
@@ -1425,35 +1516,54 @@ const IbeThicknessView: React.FC = () => {
           </div>
         </div>
 
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          {maps.length === 0 && <p className="text-xs text-muted-foreground">暂无文件，先拖拽 CSV 文件到页面。</p>}
-          {maps.map((map, index) => {
-            const selected = selectedIds.includes(map.id);
-            return (
-              <Button
-                key={map.id}
-                size="sm"
-                variant="outline"
-                className={cn(
-                  "h-9 rounded-xl border px-3 text-xs shadow-sm transition",
-                  selected
-                    ? FILE_BUTTON_THEMES[index % FILE_BUTTON_THEMES.length]
-                    : "border-input bg-card text-foreground hover:bg-muted",
-                )}
-                onClick={() => {
-                  setSelectedIds((prev) => {
-                    if (prev.includes(map.id)) {
-                      const filtered = prev.filter((id) => id !== map.id);
-                      return filtered.length > 0 ? filtered : prev;
-                    }
-                    return [...prev, map.id];
-                  });
-                }}
-              >
-                <span className="max-w-[230px] truncate">{map.fileName}</span>
-              </Button>
-            );
-          })}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {maps.length === 0 && <p className="text-xs text-muted-foreground">暂无文件，先拖拽 CSV 文件到页面。</p>}
+            {maps.map((map, index) => {
+              const selected = selectedIds.includes(map.id);
+              return (
+                <div key={map.id} className="group relative">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={cn(
+                      "h-9 rounded-xl border pr-8 text-xs shadow-sm transition",
+                      selected
+                        ? FILE_BUTTON_THEMES[index % FILE_BUTTON_THEMES.length]
+                        : "border-input bg-card text-foreground hover:bg-muted",
+                    )}
+                    onClick={() => {
+                      setSelectedIds((prev) => {
+                        if (prev.includes(map.id)) {
+                          const filtered = prev.filter((id) => id !== map.id);
+                          return filtered.length > 0 ? filtered : prev;
+                        }
+                        return [...prev, map.id];
+                      });
+                    }}
+                  >
+                    <span className="max-w-[230px] truncate">{map.fileName}</span>
+                  </Button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 transition-opacity",
+                      "bg-background/80 text-muted-foreground hover:bg-muted hover:text-foreground",
+                      "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto",
+                    )}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleRemoveMap(map.id);
+                    }}
+                    aria-label={`删除 ${map.fileName}`}
+                    title="删除"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {selectedMaps.length === 0 && <p className="text-xs text-muted-foreground">请先选择至少一个文件用于 2D 展示。</p>}
