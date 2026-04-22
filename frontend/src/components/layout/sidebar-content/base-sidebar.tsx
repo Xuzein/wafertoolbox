@@ -105,6 +105,11 @@ const getSidebarIconTheme = (toolId: string) => {
         box: "bg-chart-1/20",
         icon: "text-chart-1",
       };
+    case "cp-histogram":
+      return {
+        box: "bg-chart-1/20",
+        icon: "text-chart-1",
+      };
     case "ibe-thickness":
       return {
         box: "bg-chart-2/20",
@@ -132,7 +137,7 @@ export const BaseSidebar = ({
   const isHomeActive = currentPath === "/";
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="no-drag flex flex-col h-full min-h-0">
       {/* Tools List */}
       <nav className="flex-1 overflow-y-auto px-2.5 py-3">
         <div className="space-y-0.5">

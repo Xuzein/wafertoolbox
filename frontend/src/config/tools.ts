@@ -35,6 +35,14 @@ export const tools: ToolItem[] = [
     category: "CP工具",
   },
   {
+    id: "cp-histogram",
+    name: "CP Histogram",
+    description: "上传多片 Summary CSV，按测试项生成每片 wafer 直方图并显示 Spec 虚线。",
+    icon: "lucide--chart-column",
+    path: "/tools/cp-histogram",
+    category: "CP工具",
+  },
+  {
     id: "ibe-thickness",
     name: "Wafer Topography",
     description: "IBE 厚度数据可视化：2D 热力图与 3D 表面图。",

@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ToolsWaferOverlayRouteImport } from './routes/tools.wafer-overlay'
 import { Route as ToolsIbeThicknessRouteImport } from './routes/tools.ibe-thickness'
 import { Route as ToolsCsvTestMergeRouteImport } from './routes/tools.csv-test-merge'
+import { Route as ToolsCpHistogramRouteImport } from './routes/tools.cp-histogram'
 import { Route as ToolsAoiMapDiffRouteImport } from './routes/tools.aoi-map-diff'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const ToolsCsvTestMergeRoute = ToolsCsvTestMergeRouteImport.update({
   path: '/tools/csv-test-merge',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ToolsCpHistogramRoute = ToolsCpHistogramRouteImport.update({
+  id: '/tools/cp-histogram',
+  path: '/tools/cp-histogram',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ToolsAoiMapDiffRoute = ToolsAoiMapDiffRouteImport.update({
   id: '/tools/aoi-map-diff',
   path: '/tools/aoi-map-diff',
@@ -44,6 +50,7 @@ const ToolsAoiMapDiffRoute = ToolsAoiMapDiffRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/tools/aoi-map-diff': typeof ToolsAoiMapDiffRoute
+  '/tools/cp-histogram': typeof ToolsCpHistogramRoute
   '/tools/csv-test-merge': typeof ToolsCsvTestMergeRoute
   '/tools/ibe-thickness': typeof ToolsIbeThicknessRoute
   '/tools/wafer-overlay': typeof ToolsWaferOverlayRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/tools/aoi-map-diff': typeof ToolsAoiMapDiffRoute
+  '/tools/cp-histogram': typeof ToolsCpHistogramRoute
   '/tools/csv-test-merge': typeof ToolsCsvTestMergeRoute
   '/tools/ibe-thickness': typeof ToolsIbeThicknessRoute
   '/tools/wafer-overlay': typeof ToolsWaferOverlayRoute
@@ -59,6 +67,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/tools/aoi-map-diff': typeof ToolsAoiMapDiffRoute
+  '/tools/cp-histogram': typeof ToolsCpHistogramRoute
   '/tools/csv-test-merge': typeof ToolsCsvTestMergeRoute
   '/tools/ibe-thickness': typeof ToolsIbeThicknessRoute
   '/tools/wafer-overlay': typeof ToolsWaferOverlayRoute
@@ -68,6 +77,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/tools/aoi-map-diff'
+    | '/tools/cp-histogram'
     | '/tools/csv-test-merge'
     | '/tools/ibe-thickness'
     | '/tools/wafer-overlay'
@@ -75,6 +85,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/tools/aoi-map-diff'
+    | '/tools/cp-histogram'
     | '/tools/csv-test-merge'
     | '/tools/ibe-thickness'
     | '/tools/wafer-overlay'
@@ -82,6 +93,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/tools/aoi-map-diff'
+    | '/tools/cp-histogram'
     | '/tools/csv-test-merge'
     | '/tools/ibe-thickness'
     | '/tools/wafer-overlay'
@@ -90,6 +102,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ToolsAoiMapDiffRoute: typeof ToolsAoiMapDiffRoute
+  ToolsCpHistogramRoute: typeof ToolsCpHistogramRoute
   ToolsCsvTestMergeRoute: typeof ToolsCsvTestMergeRoute
   ToolsIbeThicknessRoute: typeof ToolsIbeThicknessRoute
   ToolsWaferOverlayRoute: typeof ToolsWaferOverlayRoute
@@ -125,6 +138,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ToolsCsvTestMergeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tools/cp-histogram': {
+      id: '/tools/cp-histogram'
+      path: '/tools/cp-histogram'
+      fullPath: '/tools/cp-histogram'
+      preLoaderRoute: typeof ToolsCpHistogramRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools/aoi-map-diff': {
       id: '/tools/aoi-map-diff'
       path: '/tools/aoi-map-diff'
@@ -138,6 +158,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ToolsAoiMapDiffRoute: ToolsAoiMapDiffRoute,
+  ToolsCpHistogramRoute: ToolsCpHistogramRoute,
   ToolsCsvTestMergeRoute: ToolsCsvTestMergeRoute,
   ToolsIbeThicknessRoute: ToolsIbeThicknessRoute,
   ToolsWaferOverlayRoute: ToolsWaferOverlayRoute,

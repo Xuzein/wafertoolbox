@@ -43,7 +43,7 @@ const SidebarHeader = () => {
 
   return (
     <div
-      className={`z-100 shrink-0 border-b border-sidebar-border/80 px-3 pb-3 ${isMac ? "mt-8" : "mt-3"} flex items-center justify-between`}
+      className={`drag-el z-100 shrink-0 border-b border-sidebar-border/80 px-3 pb-3 ${isMac ? "mt-8" : "mt-3"} flex items-center justify-between`}
     >
       <div className="flex items-center gap-2">
         <span className="iconify lucide--tool-case h-5 w-5 text-primary" />
@@ -143,7 +143,7 @@ export const MainLayout = () => {
         {/* Sidebar */}
         <aside
           className={`
-            flex h-full w-56 shrink-0 flex-col select-none text-sidebar-foreground
+            drag-el flex h-full w-56 shrink-0 flex-col select-none text-sidebar-foreground
             border-r border-sidebar-border bg-sidebar
             ${isWindows ? "" : "backdrop-blur-sm"}
           `}

@@ -20,6 +20,11 @@ const getToolIconTheme = (toolId: string) => {
         box: "bg-chart-1/15 group-hover:bg-chart-1/25",
         icon: "text-chart-1",
       };
+    case "cp-histogram":
+      return {
+        box: "bg-chart-1/15 group-hover:bg-chart-1/25",
+        icon: "text-chart-1",
+      };
     case "ibe-thickness":
       return {
         box: "bg-chart-2/15 group-hover:bg-chart-2/25",
