@@ -265,3 +265,30 @@ html {
     --shadow-xl: var(--shadow-xl);
     --shadow-2xl: var(--shadow-2xl);
 }
+
+@layer base {
+    body {
+        background-image:
+            radial-gradient(circle at 8% -18%, color-mix(in oklab, var(--chart-2) 14%, transparent) 0, transparent 34%),
+            radial-gradient(circle at 92% 110%, color-mix(in oklab, var(--chart-1) 12%, transparent) 0, transparent 36%);
+        background-attachment: fixed;
+    }
+}
+
+@layer components {
+    .app-surface {
+        @apply rounded-2xl border border-input/80 bg-card/90 shadow-sm;
+    }
+
+    .app-surface-muted {
+        @apply rounded-xl border border-input/70 bg-muted/40;
+    }
+
+    .app-title {
+        @apply text-sm font-semibold text-foreground;
+    }
+
+    .app-subtitle {
+        @apply text-xs text-muted-foreground;
+    }
+}

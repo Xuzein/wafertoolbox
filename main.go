@@ -19,7 +19,7 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:     "waferbox",
+		Title:     "Waferbox 工具箱",
 		Width:     1024,
 		Height:    768,
 		Frameless: isFrameless(),

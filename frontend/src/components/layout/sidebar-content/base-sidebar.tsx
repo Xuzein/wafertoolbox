@@ -81,7 +81,7 @@ const SettingsPopover = ({
 
 // Base nav item styles
 const navItemClasses =
-  "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-colors";
+  "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-all duration-200";
 
 const activeNavClasses =
   "bg-chart-2 text-white font-medium shadow-sm";
@@ -104,6 +104,11 @@ const getSidebarIconTheme = (toolId: string) => {
       return {
         box: "bg-chart-1/20",
         icon: "text-chart-1",
+      };
+    case "ibe-thickness":
+      return {
+        box: "bg-chart-2/20",
+        icon: "text-chart-2",
       };
     default:
       return {
@@ -189,7 +194,7 @@ export const BaseSidebar = ({
       <div className="shrink-0 border-t border-sidebar-border p-2">
         <div className="flex items-center justify-between">
           <div className="truncate px-1 text-xs font-medium text-muted-foreground">
-            {username ? `Hi, ${username}` : "Hi"}
+            {username ? `你好，${username}` : "你好"}
           </div>
           <SettingsPopover onLogout={onLogout} />
         </div>

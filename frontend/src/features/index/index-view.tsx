@@ -40,9 +40,12 @@ const IndexView: React.FC = () => {
 
   return (
     <div className="relative mx-auto flex h-full w-full max-w-[1280px] flex-col p-6">
-      <div className="mb-7">
+      <div className="app-surface relative mb-7 overflow-hidden p-5">
+        <div className="absolute right-0 top-0 h-20 w-20 rounded-full bg-chart-2/10 blur-2xl" />
         <h1 className="text-2xl font-semibold text-foreground">工具箱</h1>
-        <p className="mt-1 text-sm text-muted-foreground">选择工具开始使用</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          选择工具开始使用，统一在这里进入日常分析与导出流程。
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -101,7 +104,7 @@ const IndexView: React.FC = () => {
                 </div>
               )}
               <div className="text-[11px] font-medium tracking-[0.08em] text-muted-foreground/90">
-                DESIGN BY IT
+                OPEN TOOL
               </div>
             </div>
             </Link>

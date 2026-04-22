@@ -729,19 +729,19 @@ const Heatmap2DPanel: React.FC<{
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm">
+    <div className="app-surface p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="truncate text-sm font-semibold text-foreground">{map.fileName}</h3>
         <Button
           type="button"
           size="icon"
           variant="outline"
-          className="h-8 w-8 border-slate-200 bg-white/85 text-slate-600 hover:bg-slate-50"
+          className="h-8 w-8 border-input bg-background/80 text-muted-foreground hover:bg-muted"
           disabled={isDownloading}
           onClick={() => {
             void onDownload();
           }}
-          title="Download PNG"
+          title="下载 PNG"
         >
           <Download className="h-4 w-4" />
         </Button>
@@ -749,41 +749,41 @@ const Heatmap2DPanel: React.FC<{
 
       <div className="grid grid-cols-[minmax(0,1fr)_168px] gap-3">
         <div className="relative">
-        <canvas
-          ref={canvasRef}
-          className="aspect-square w-full rounded-lg border border-slate-200 bg-slate-50/40"
-          onMouseMove={(event) => setHoveredIndex(pickNearestIndex(event.clientX, event.clientY))}
-          onMouseLeave={() => setHoveredIndex(null)}
-          onClick={(event) => {
-            const picked = pickNearestIndex(event.clientX, event.clientY);
-            setSelectedIndex((prev) => (prev === picked ? null : picked));
-          }}
-        />
+          <canvas
+            ref={canvasRef}
+            className="aspect-square w-full rounded-lg border border-input bg-muted/25"
+            onMouseMove={(event) => setHoveredIndex(pickNearestIndex(event.clientX, event.clientY))}
+            onMouseLeave={() => setHoveredIndex(null)}
+            onClick={(event) => {
+              const picked = pickNearestIndex(event.clientX, event.clientY);
+              setSelectedIndex((prev) => (prev === picked ? null : picked));
+            }}
+          />
 
         {activePayload && !hidePoints && (
           <div
-            className="pointer-events-none absolute z-10 rounded-lg border border-sky-200 bg-white/96 px-2 py-1 text-[11px] shadow-md"
+            className="pointer-events-none absolute z-10 rounded-lg border border-chart-2/30 bg-card/95 px-2 py-1 text-[11px] shadow-md"
             style={{
               left: `${clamp(activePayload.x + 10, 4, 280)}px`,
               top: `${clamp(activePayload.y - 56, 4, 320)}px`,
             }}
           >
-            <div className="font-semibold text-slate-800">Point #{activePayload.index + 1}</div>
-            <div className="text-slate-600">X: {fmt2(activePayload.point.x)}</div>
-            <div className="text-slate-600">Y: {fmt2(activePayload.point.y)}</div>
-            <div className="text-slate-600">Z: {fmt2(activePayload.point.z)}</div>
+            <div className="font-semibold text-foreground">点位 #{activePayload.index + 1}</div>
+            <div className="text-muted-foreground">X: {fmt2(activePayload.point.x)}</div>
+            <div className="text-muted-foreground">Y: {fmt2(activePayload.point.y)}</div>
+            <div className="text-muted-foreground">Z: {fmt2(activePayload.point.z)}</div>
           </div>
         )}
         </div>
 
-        <div className="flex h-full flex-col justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 text-[11px]">
+        <div className="flex h-full flex-col justify-center gap-1.5 rounded-lg border border-input/80 bg-muted/45 p-2.5 text-[11px]">
           {buildStatsRows(stats).map((row) => (
             <div
               key={row.label}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white/85 px-2 py-1"
+              className="inline-flex items-center gap-1.5 rounded-md border border-input/80 bg-card/80 px-2 py-1"
             >
-              <span className="text-slate-500">{row.label}</span>
-              <span className="font-semibold text-slate-900">{row.value}</span>
+              <span className="text-muted-foreground">{row.label}</span>
+              <span className="font-semibold text-foreground">{row.value}</span>
             </div>
           ))}
         </div>
@@ -862,7 +862,7 @@ const Surface3D: React.FC<{ map: ParsedIbeMap | null; grid: HeatGrid | null }> =
     const waferRadius = Math.min(width, height) * 0.3;
     const scaleXY = waferRadius * 1.7 * camera.zoom;
     const heightFactor = 0.72;
-    const baseDepth = 0.74;
+    const baseDepth = 0.62;
     const sideSegments = 72;
     const rimRadius = 0.52;
     const barX = 20;
@@ -1165,7 +1165,7 @@ const mergeMaps = (prev: ParsedIbeMap[], incoming: ParsedIbeMap[]) => {
 };
 
 const IbeThicknessView: React.FC = () => {
-  useAppTitle({ title: "Wafer Topography Studio" });
+  useAppTitle({ title: "Wafer Topography" });
 
   const [maps, setMaps] = useState<ParsedIbeMap[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -1380,19 +1380,19 @@ const IbeThicknessView: React.FC = () => {
         <div className="pointer-events-none absolute inset-4 z-20 rounded-2xl border-2 border-dashed border-primary bg-primary/10" />
       )}
 
-      <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-foreground">Data Input</h2>
-        <p className="mt-2 text-xs text-muted-foreground">将 CSV 文件拖拽到页面任意位置即可上传，支持一次拖入多个文件。</p>
-        {loading && <p className="mt-2 text-xs text-muted-foreground">Parsing file...</p>}
+      <div className="app-surface p-4">
+        <h2 className="app-title">数据输入</h2>
+        <p className="mt-2 app-subtitle">将 CSV 文件拖拽到页面任意位置即可上传，支持一次拖入多个文件。</p>
+        {loading && <p className="mt-2 app-subtitle">正在解析文件...</p>}
         {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-        {downloadNotice && <p className="mt-2 text-xs text-sky-700">{downloadNotice}</p>}
+        {downloadNotice && <p className="mt-2 text-xs text-chart-2">{downloadNotice}</p>}
       </div>
 
-      <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
+      <div className="app-surface p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-semibold text-foreground">2D Heat Maps</h2>
-            <p className="text-xs text-muted-foreground">Selected {selectedMaps.length} files, multi-panel adaptive layout</p>
+            <h2 className="app-title">2D 热力图</h2>
+            <p className="app-subtitle">已选 {selectedMaps.length} 个文件，多面板自适应布局</p>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -1402,23 +1402,23 @@ const IbeThicknessView: React.FC = () => {
               className={cn(
                 "h-8 rounded-lg px-3 text-xs",
                 hidePoints
-                  ? "bg-slate-700 text-white hover:bg-slate-800"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+                  ? "bg-foreground text-background hover:opacity-90"
+                  : "border-input bg-background text-foreground hover:bg-muted",
               )}
               onClick={() => setHidePoints((prev) => !prev)}
             >
-              Hide Points
+              {hidePoints ? "显示点位" : "隐藏点位"}
             </Button>
             <Button
               type="button"
               size="icon"
               variant="outline"
-              className="h-9 w-9 border-sky-300 text-sky-700 hover:bg-sky-50"
+              className="h-9 w-9 border-chart-2/45 text-chart-2 hover:bg-chart-2/10"
               onClick={() => {
                 void handleDownloadAll();
               }}
               disabled={downloadingAll || selectedMaps.length === 0}
-              title="Download all selected maps"
+              title="下载全部选中图"
             >
               <Download className="h-4 w-4" />
             </Button>
@@ -1438,7 +1438,7 @@ const IbeThicknessView: React.FC = () => {
                   "h-9 rounded-xl border px-3 text-xs shadow-sm transition",
                   selected
                     ? FILE_BUTTON_THEMES[index % FILE_BUTTON_THEMES.length]
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                    : "border-input bg-card text-foreground hover:bg-muted",
                 )}
                 onClick={() => {
                   setSelectedIds((prev) => {
@@ -1481,10 +1481,10 @@ const IbeThicknessView: React.FC = () => {
         )}
       </div>
 
-      <div className="rounded-2xl border border-input bg-card/90 p-4 shadow-sm">
+      <div className="app-surface p-4">
         <div className="mb-3">
-          <h2 className="text-sm font-semibold text-foreground">3D Surfaces</h2>
-          <p className="text-xs text-muted-foreground">Count is synced with selected 2D files</p>
+          <h2 className="app-title">3D 表面图</h2>
+          <p className="app-subtitle">展示数量与 2D 选中项保持同步</p>
         </div>
         {selectedMaps.length === 0 && <p className="text-xs text-muted-foreground">请先选择至少一个文件用于 3D 展示。</p>}
         {selectedMaps.length > 0 && (

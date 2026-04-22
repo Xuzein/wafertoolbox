@@ -15,12 +15,13 @@ export const TitleBar = () => {
 
   return (
     <header
-      className={`drag-el flex h-12 shrink-0 items-center justify-between border-b border-border/80 bg-background/90 backdrop-blur-sm ${
+      className={`drag-el relative flex h-12 shrink-0 items-center justify-between border-b border-border/80 bg-background/90 backdrop-blur-sm ${
         isWindows ? "pr-0 pl-4" : "px-5"
       }`}
     >
-      <div className="truncate text-sm font-semibold tracking-wide text-foreground">
-        {title ?? "Wafer 工具箱"}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-chart-2/40 to-transparent" />
+      <div className="truncate text-sm font-semibold tracking-wide text-foreground/95">
+        {title ?? "Waferbox 工具箱"}
       </div>
 
       <div className="no-drag flex items-center gap-2">

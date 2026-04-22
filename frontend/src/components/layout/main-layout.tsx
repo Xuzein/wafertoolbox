@@ -139,7 +139,7 @@ export const MainLayout = () => {
 
   return (
     <AppTitleProvider>
-      <div className="relative flex h-screen w-screen bg-background">
+      <div className="relative flex h-screen w-screen bg-background/95">
         {/* Sidebar */}
         <aside
           className={`
@@ -156,10 +156,10 @@ export const MainLayout = () => {
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-hidden bg-background">
+        <main className="flex-1 overflow-hidden bg-background/70">
           <div className="flex h-full flex-col overflow-hidden">
             <TitleBar />
-            <section className="min-h-0 flex-1 overflow-auto bg-muted/30">
+            <section className="min-h-0 flex-1 overflow-auto">
               <Outlet />
             </section>
           </div>

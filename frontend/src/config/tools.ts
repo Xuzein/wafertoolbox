@@ -36,8 +36,8 @@ export const tools: ToolItem[] = [
   },
   {
     id: "ibe-thickness",
-    name: "Wafer Topography Studio",
-    description: "Build premium 2D heat maps and interactive 3D surface views from IBE X/Y/Z CSV data.",
+    name: "Wafer Topography",
+    description: "IBE 厚度数据可视化：2D 热力图与 3D 表面图。",
     icon: "lucide--mountain",
     path: "/tools/ibe-thickness",
     category: "Wafer工具",

@@ -203,6 +203,14 @@ const CsvTestMergeView: React.FC = () => {
     setCopyHint(ok ? "已复制路径" : "复制失败");
   };
 
+  const handleCopyTestItem = async () => {
+    if (!selectedTestItem) {
+      return;
+    }
+    const ok = await ClipboardSetText(selectedTestItem);
+    setCopyHint(ok ? "已复制测试项" : "复制失败");
+  };
+
   useEffect(() => {
     if (!selectedTestItem && allTestItems.length > 0) {
       setSelectedTestItem(allTestItems[0]);
@@ -229,7 +237,7 @@ const CsvTestMergeView: React.FC = () => {
         </div>
       )}
 
-      <div className="rounded-lg border border-input bg-card p-4">
+      <div className="app-surface p-4">
         <div className="flex flex-wrap items-center gap-3">
           <Button
             size="sm"
@@ -283,8 +291,8 @@ const CsvTestMergeView: React.FC = () => {
       </div>
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="rounded-lg border border-input bg-card p-4">
-          <div className="text-sm font-semibold text-foreground">合并配置</div>
+        <div className="app-surface p-4">
+          <div className="app-title">合并配置</div>
           <div className="mt-3 text-xs text-muted-foreground">测试项（来自所有上传文件）</div>
           <select
             className="mt-2 h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none"
@@ -302,6 +310,26 @@ const CsvTestMergeView: React.FC = () => {
               ))
             )}
           </select>
+          <div className="mt-2 flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={selectedTestItem}
+              placeholder="请选择测试项"
+              className="h-8 flex-1 rounded-md border border-input bg-muted/40 px-2 text-xs text-foreground select-text"
+              onFocus={(event) => event.currentTarget.select()}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleCopyTestItem()}
+              disabled={!selectedTestItem}
+            >
+              复制测试项
+            </Button>
+          </div>
+          {copyHint && <div className="mt-2 text-xs text-[var(--success)]">{copyHint}</div>}
 
           <div className="mt-3 space-y-1 text-xs text-muted-foreground">
             <div>匹配晶圆数: {selectedRows.length}</div>
@@ -327,9 +355,9 @@ const CsvTestMergeView: React.FC = () => {
           </Button>
         </div>
 
-        <div className="rounded-lg border border-input bg-card p-4">
-          <div className="mb-2 text-sm font-semibold text-foreground">预览（每片 wafer 一列）</div>
-          <div className="hide-scrollbar max-h-full overflow-auto rounded-md border border-input">
+        <div className="app-surface p-4">
+          <div className="mb-2 app-title">预览（每片 Wafer 一列）</div>
+          <div className="hide-scrollbar max-h-full overflow-auto rounded-lg border border-input/80 bg-background/60">
             <table className="min-w-full border-collapse text-xs">
               <thead className="sticky top-0 bg-muted/60">
                 <tr>
