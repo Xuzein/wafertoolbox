@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -24,10 +25,12 @@ import { WaferMapSvg } from "./wafer-map-svg";
 
 type WaferOverlayViewCache = {
   maps: ParsedAoiWaferMap[];
+  validateWaferId: boolean;
 };
 
 const defaultWaferOverlayViewCache: WaferOverlayViewCache = {
   maps: [],
+  validateWaferId: true,
 };
 
 let waferOverlayViewCache: WaferOverlayViewCache = defaultWaferOverlayViewCache;
@@ -130,6 +133,7 @@ const WaferOverlayView: React.FC = () => {
   });
 
   const [maps, setMaps] = useState<ParsedAoiWaferMap[]>(waferOverlayViewCache.maps);
+  const [validateWaferId, setValidateWaferId] = useState(waferOverlayViewCache.validateWaferId);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [notice, setNotice] = useState<string>("");
@@ -163,8 +167,9 @@ const WaferOverlayView: React.FC = () => {
   useEffect(() => {
     waferOverlayViewCache = {
       maps,
+      validateWaferId,
     };
-  }, [maps]);
+  }, [maps, validateWaferId]);
 
   const overlayMap = useMemo(() => buildOverlayWaferMap(maps), [maps]);
   const overlayDiffHighlight = useMemo(() => {
@@ -253,7 +258,9 @@ const WaferOverlayView: React.FC = () => {
           throw new Error(`文件已存在：${map.fileName}`);
         }
 
-        const mismatch = validateMapsForOverlay(nextMaps, map);
+        const mismatch = validateMapsForOverlay(nextMaps, map, {
+          validateWaferId,
+        });
         if (mismatch) {
           throw new Error(`${map.fileName} 无法叠图，${mismatch}`);
         }
@@ -501,6 +508,18 @@ const WaferOverlayView: React.FC = () => {
       <div className="flex flex-col gap-4 shrink-0">
         <div className="rounded-lg border border-input bg-card px-3 py-2 text-sm text-muted-foreground">
           将 AOI `.txt` 文件拖拽到页面任意区域即可自动计算叠图
+        </div>
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-input bg-card px-3 py-2 text-sm">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-foreground">
+            <Checkbox
+              checked={validateWaferId}
+              onCheckedChange={(checked) => setValidateWaferId(checked === true)}
+            />
+            <span>校验片号一致性</span>
+          </label>
+          <span className="text-xs text-muted-foreground">
+            关闭后可叠加不同片号文件，但仍会校验矩阵尺寸是否一致。
+          </span>
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex items-center justify-between">

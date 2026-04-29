@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ToolsWaferOverlayRouteImport } from './routes/tools.wafer-overlay'
 import { Route as ToolsIbeThicknessRouteImport } from './routes/tools.ibe-thickness'
+import { Route as ToolsFilmThicknessRouteImport } from './routes/tools.film-thickness'
 import { Route as ToolsCsvTestMergeRouteImport } from './routes/tools.csv-test-merge'
 import { Route as ToolsCpHistogramRouteImport } from './routes/tools.cp-histogram'
 import { Route as ToolsAoiMapDiffRouteImport } from './routes/tools.aoi-map-diff'
@@ -29,6 +30,11 @@ const ToolsWaferOverlayRoute = ToolsWaferOverlayRouteImport.update({
 const ToolsIbeThicknessRoute = ToolsIbeThicknessRouteImport.update({
   id: '/tools/ibe-thickness',
   path: '/tools/ibe-thickness',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsFilmThicknessRoute = ToolsFilmThicknessRouteImport.update({
+  id: '/tools/film-thickness',
+  path: '/tools/film-thickness',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsCsvTestMergeRoute = ToolsCsvTestMergeRouteImport.update({
@@ -52,6 +58,7 @@ export interface FileRoutesByFullPath {
   '/tools/aoi-map-diff': typeof ToolsAoiMapDiffRoute
   '/tools/cp-histogram': typeof ToolsCpHistogramRoute
   '/tools/csv-test-merge': typeof ToolsCsvTestMergeRoute
+  '/tools/film-thickness': typeof ToolsFilmThicknessRoute
   '/tools/ibe-thickness': typeof ToolsIbeThicknessRoute
   '/tools/wafer-overlay': typeof ToolsWaferOverlayRoute
 }
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/tools/aoi-map-diff': typeof ToolsAoiMapDiffRoute
   '/tools/cp-histogram': typeof ToolsCpHistogramRoute
   '/tools/csv-test-merge': typeof ToolsCsvTestMergeRoute
+  '/tools/film-thickness': typeof ToolsFilmThicknessRoute
   '/tools/ibe-thickness': typeof ToolsIbeThicknessRoute
   '/tools/wafer-overlay': typeof ToolsWaferOverlayRoute
 }
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/tools/aoi-map-diff': typeof ToolsAoiMapDiffRoute
   '/tools/cp-histogram': typeof ToolsCpHistogramRoute
   '/tools/csv-test-merge': typeof ToolsCsvTestMergeRoute
+  '/tools/film-thickness': typeof ToolsFilmThicknessRoute
   '/tools/ibe-thickness': typeof ToolsIbeThicknessRoute
   '/tools/wafer-overlay': typeof ToolsWaferOverlayRoute
 }
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
     | '/tools/aoi-map-diff'
     | '/tools/cp-histogram'
     | '/tools/csv-test-merge'
+    | '/tools/film-thickness'
     | '/tools/ibe-thickness'
     | '/tools/wafer-overlay'
   fileRoutesByTo: FileRoutesByTo
@@ -87,6 +97,7 @@ export interface FileRouteTypes {
     | '/tools/aoi-map-diff'
     | '/tools/cp-histogram'
     | '/tools/csv-test-merge'
+    | '/tools/film-thickness'
     | '/tools/ibe-thickness'
     | '/tools/wafer-overlay'
   id:
@@ -95,6 +106,7 @@ export interface FileRouteTypes {
     | '/tools/aoi-map-diff'
     | '/tools/cp-histogram'
     | '/tools/csv-test-merge'
+    | '/tools/film-thickness'
     | '/tools/ibe-thickness'
     | '/tools/wafer-overlay'
   fileRoutesById: FileRoutesById
@@ -104,6 +116,7 @@ export interface RootRouteChildren {
   ToolsAoiMapDiffRoute: typeof ToolsAoiMapDiffRoute
   ToolsCpHistogramRoute: typeof ToolsCpHistogramRoute
   ToolsCsvTestMergeRoute: typeof ToolsCsvTestMergeRoute
+  ToolsFilmThicknessRoute: typeof ToolsFilmThicknessRoute
   ToolsIbeThicknessRoute: typeof ToolsIbeThicknessRoute
   ToolsWaferOverlayRoute: typeof ToolsWaferOverlayRoute
 }
@@ -129,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/tools/ibe-thickness'
       fullPath: '/tools/ibe-thickness'
       preLoaderRoute: typeof ToolsIbeThicknessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tools/film-thickness': {
+      id: '/tools/film-thickness'
+      path: '/tools/film-thickness'
+      fullPath: '/tools/film-thickness'
+      preLoaderRoute: typeof ToolsFilmThicknessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools/csv-test-merge': {
@@ -160,6 +180,7 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsAoiMapDiffRoute: ToolsAoiMapDiffRoute,
   ToolsCpHistogramRoute: ToolsCpHistogramRoute,
   ToolsCsvTestMergeRoute: ToolsCsvTestMergeRoute,
+  ToolsFilmThicknessRoute: ToolsFilmThicknessRoute,
   ToolsIbeThicknessRoute: ToolsIbeThicknessRoute,
   ToolsWaferOverlayRoute: ToolsWaferOverlayRoute,
 }

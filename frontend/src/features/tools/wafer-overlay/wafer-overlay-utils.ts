@@ -274,13 +274,16 @@ export const buildDiffWaferMap = (
 export const validateMapsForOverlay = (
   existingMaps: ParsedAoiWaferMap[],
   incomingMap: ParsedAoiWaferMap,
+  options?: {
+    validateWaferId?: boolean;
+  },
 ): string | null => {
   if (existingMaps.length === 0) {
     return null;
   }
 
   const first = existingMaps[0];
-  if (incomingMap.waferId !== first.waferId) {
+  if ((options?.validateWaferId ?? true) && incomingMap.waferId !== first.waferId) {
     return `片号不一致：当前为 ${first.waferId}，新增文件为 ${incomingMap.waferId}`;
   }
   if (
@@ -295,8 +298,11 @@ export const validateMapsForOverlay = (
 export const validateMapsForDiff = (
   leftMap: ParsedAoiWaferMap,
   rightMap: ParsedAoiWaferMap,
+  options?: {
+    validateWaferId?: boolean;
+  },
 ): string | null => {
-  if (leftMap.waferId !== rightMap.waferId) {
+  if ((options?.validateWaferId ?? true) && leftMap.waferId !== rightMap.waferId) {
     return `片号不一致：${leftMap.waferId} / ${rightMap.waferId}`;
   }
   if (leftMap.rowCount !== rightMap.rowCount || leftMap.colCount !== rightMap.colCount) {

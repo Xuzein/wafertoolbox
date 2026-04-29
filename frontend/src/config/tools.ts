@@ -43,6 +43,14 @@ export const tools: ToolItem[] = [
     category: "CP工具",
   },
   {
+    id: "film-thickness-analyzer",
+    name: "Film Thickness",
+    description: "上传 Rudolph 膜厚 CSV，按日期输出 wafer 膜厚图、分页总览和汇总表。",
+    icon: "lucide--layers",
+    path: "/tools/film-thickness",
+    category: "Wafer工具",
+  },
+  {
     id: "ibe-thickness",
     name: "Wafer Topography",
     description: "IBE 厚度数据可视化：2D 热力图与 3D 表面图。",

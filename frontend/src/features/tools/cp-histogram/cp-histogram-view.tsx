@@ -80,8 +80,6 @@ type SpecOverlayLayout = {
   right: number;
   top: number;
   bottom: number;
-  scaleX: number;
-  scaleY: number;
 };
 
 type SpecLinePluginOptions = {
@@ -160,6 +158,13 @@ const CHART_BLUE = {
   border: "rgba(37, 99, 235, 0.96)",
   line: "rgba(29, 78, 216, 0.95)",
   softFill: "rgba(37, 99, 235, 0.10)",
+} as const;
+
+const SPEC_RED = {
+  fillSoft: "rgba(220, 38, 38, 0.12)",
+  chipBorder: "border-destructive/45",
+  chipBg: "bg-destructive/10",
+  chipText: "text-destructive",
 } as const;
 
 const HISTOGRAM_PALETTES = [{ from: CHART_BLUE.from, to: CHART_BLUE.to, border: CHART_BLUE.border }] as const;
@@ -325,11 +330,18 @@ const calcFutureYield = (values: number[], spec: ParsedSpecInputs): FutureYield 
   };
 };
 
-const formatFutureYield = (futureYield: FutureYield | null) => {
+const formatFutureYieldRate = (futureYield: FutureYield | null) => {
   if (!futureYield) {
     return "-";
   }
-  return `${futureYield.rate.toFixed(2)}% · ${futureYield.passed}/${futureYield.total}`;
+  return `${futureYield.rate.toFixed(2)}%`;
+};
+
+const formatFutureYieldPoints = (futureYield: FutureYield | null) => {
+  if (!futureYield) {
+    return "-";
+  }
+  return `${futureYield.passed}/${futureYield.total}`;
 };
 
 const SpecValueChip: React.FC<{
@@ -343,11 +355,13 @@ const SpecValueChip: React.FC<{
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium",
-        isNew ? "border-primary/35 border-dashed bg-primary/10 text-primary" : "border-primary/20 bg-primary/5 text-primary",
+        isNew
+          ? `${SPEC_RED.chipBorder} border-dashed ${SPEC_RED.chipBg} ${SPEC_RED.chipText}`
+          : "border-primary/20 bg-primary/5 text-primary",
       )}
     >
       <span>{label}</span>
-      <span className="font-semibold text-primary">
+      <span className={cn("font-semibold", isNew ? SPEC_RED.chipText : "text-primary")}>
         {value === null ? "-" : fmt(value, 2)}
       </span>
     </span>
@@ -393,9 +407,7 @@ const areSpecOverlayLayoutsEqual = (a: SpecOverlayLayout | null, b: SpecOverlayL
     a.left === b.left &&
     a.right === b.right &&
     a.top === b.top &&
-    a.bottom === b.bottom &&
-    a.scaleX === b.scaleX &&
-    a.scaleY === b.scaleY
+    a.bottom === b.bottom
   );
 };
 
@@ -404,17 +416,11 @@ const getSpecOverlayLayout = (chart: ChartJS<"bar"> | null): SpecOverlayLayout |
     return null;
   }
 
-  const canvasRect = chart.canvas.getBoundingClientRect();
-  const scaleX = canvasRect.width > 0 ? chart.canvas.width / canvasRect.width : 1;
-  const scaleY = canvasRect.height > 0 ? chart.canvas.height / canvasRect.height : 1;
-
   return {
-    left: chart.chartArea.left / scaleX,
-    right: chart.chartArea.right / scaleX,
-    top: chart.chartArea.top / scaleY,
-    bottom: chart.chartArea.bottom / scaleY,
-    scaleX,
-    scaleY,
+    left: chart.chartArea.left,
+    right: chart.chartArea.right,
+    top: chart.chartArea.top,
+    bottom: chart.chartArea.bottom,
   };
 };
 
@@ -467,8 +473,7 @@ const DraggableSpecOverlay: React.FC<{
       const rect = overlayEl.getBoundingClientRect();
       const rawPixelX = event.clientX - rect.left;
       const clampedPixelX = Math.max(layout.left, Math.min(layout.right, rawPixelX));
-      const chartPixelX = clampedPixelX * layout.scaleX;
-      let nextValue = Number(xScale.getValueForPixel(chartPixelX));
+      let nextValue = Number(xScale.getValueForPixel(clampedPixelX));
       if (!Number.isFinite(nextValue)) {
         return;
       }
@@ -506,11 +511,11 @@ const DraggableSpecOverlay: React.FC<{
 
   const lowerXRaw =
     layout && xScale && spec.lower !== null && Number.isFinite(spec.lower)
-      ? xScale.getPixelForValue(spec.lower) / layout.scaleX
+      ? xScale.getPixelForValue(spec.lower)
       : null;
   const upperXRaw =
     layout && xScale && spec.upper !== null && Number.isFinite(spec.upper)
-      ? xScale.getPixelForValue(spec.upper) / layout.scaleX
+      ? xScale.getPixelForValue(spec.upper)
       : null;
   const lowerX = lowerXRaw === null || !layout ? null : clampToRange(lowerXRaw, layout.left, layout.right);
   const upperX = upperXRaw === null || !layout ? null : clampToRange(upperXRaw, layout.left, layout.right);
@@ -528,7 +533,7 @@ const DraggableSpecOverlay: React.FC<{
           className="pointer-events-none absolute z-30 -translate-x-1/2"
           style={{ left: x, top: Math.max(0, layout.top - 34) }}
         >
-          <span className="inline-flex items-center rounded-md border border-primary/40 bg-background/95 px-2 py-1 text-[11px] font-semibold text-primary shadow-sm">
+          <span className="inline-flex items-center rounded-md border border-destructive/40 bg-background/95 px-2 py-1 text-[11px] font-semibold text-destructive shadow-sm">
             {label}: {fmt(value, 2)}
           </span>
         </div>
@@ -550,9 +555,9 @@ const DraggableSpecOverlay: React.FC<{
           }}
           aria-label={`拖动 ${label}`}
         >
-          <span className="pointer-events-none absolute left-1/2 top-0 h-full -translate-x-1/2 border-l-[3px] border-dashed border-primary" />
-          <span className="pointer-events-none absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary bg-background shadow-sm" />
-          <span className="pointer-events-none absolute left-1/2 bottom-0 h-3 w-3 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-primary bg-background shadow-sm" />
+          <span className="pointer-events-none absolute left-1/2 top-0 h-full -translate-x-1/2 border-l-[3px] border-dashed border-destructive" />
+          <span className="pointer-events-none absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-destructive bg-background shadow-sm" />
+          <span className="pointer-events-none absolute left-1/2 bottom-0 h-3 w-3 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-destructive bg-background shadow-sm" />
         </button>
       </div>
     );
@@ -562,12 +567,13 @@ const DraggableSpecOverlay: React.FC<{
     <div ref={overlayRef} className="pointer-events-none absolute inset-2 z-10">
       {lowerX !== null && upperX !== null && (
         <div
-          className="absolute bg-primary/10"
+          className="absolute"
           style={{
             left: Math.min(lowerX, upperX),
             top: layout.top,
             width: Math.abs(upperX - lowerX),
             height: lineHeight,
+            backgroundColor: SPEC_RED.fillSoft,
           }}
         />
       )}
@@ -605,6 +611,62 @@ const sortCpStages = (a: string, b: string) => {
   return a.localeCompare(b);
 };
 
+const naturalSorter = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+const getWaferSortNumber = (value: string): number | null => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const separatedTailNumber = trimmed.match(/(?:^|[_\-\s])0*(\d+)\s*$/);
+  const fallbackTailNumber = trimmed.match(/(\d+)\D*$/);
+  const matchedNumber = separatedTailNumber?.[1] ?? fallbackTailNumber?.[1];
+  if (!matchedNumber) {
+    return null;
+  }
+
+  const parsed = Number(matchedNumber);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const sortWaferLabels = (a: string, b: string) => {
+  const aWaferNumber = getWaferSortNumber(a);
+  const bWaferNumber = getWaferSortNumber(b);
+
+  if (aWaferNumber !== null && bWaferNumber !== null && aWaferNumber !== bWaferNumber) {
+    return aWaferNumber - bWaferNumber;
+  }
+  if (aWaferNumber !== null && bWaferNumber === null) {
+    return -1;
+  }
+  if (aWaferNumber === null && bWaferNumber !== null) {
+    return 1;
+  }
+  return naturalSorter.compare(a, b);
+};
+
+const sortCpHistogramFiles = (inputFiles: ParsedCpHistogramFile[]) => {
+  return [...inputFiles].sort((a, b) => {
+    const waferGroupOrder = sortWaferLabels(a.waferGroup, b.waferGroup);
+    if (waferGroupOrder !== 0) {
+      return waferGroupOrder;
+    }
+
+    const waferIdOrder = sortWaferLabels(a.waferId, b.waferId);
+    if (waferIdOrder !== 0) {
+      return waferIdOrder;
+    }
+
+    const cpStageOrder = sortCpStages(a.cpStage, b.cpStage);
+    if (cpStageOrder !== 0) {
+      return cpStageOrder;
+    }
+
+    return naturalSorter.compare(a.fileName, b.fileName);
+  });
+};
+
 const getCpStageOptions = (files: ParsedCpHistogramFile[]) => {
   return Array.from(new Set(files.map((file) => file.cpStage))).sort(sortCpStages);
 };
@@ -613,7 +675,7 @@ const getWaferGroupOptions = (files: ParsedCpHistogramFile[], cpStages: string[]
   const selectedStages = new Set(cpStages);
   return Array.from(
     new Set(files.filter((file) => selectedStages.has(file.cpStage)).map((file) => file.waferGroup)),
-  ).sort((a, b) => a.localeCompare(b));
+  ).sort(sortWaferLabels);
 };
 
 const parseCsvLine = (line: string): string[] => {
@@ -1002,7 +1064,7 @@ const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
                     className={cn(
                       "flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition",
                       selectedSet.has(option)
-                        ? "border-primary/25 bg-primary/10 text-foreground shadow-sm"
+                        ? "border-chart-2/35 bg-chart-2/12 text-foreground shadow-sm"
                         : "border-transparent bg-background hover:border-input hover:bg-muted/45",
                     )}
                     onClick={() => toggleOption(option, !selectedSet.has(option))}
@@ -1012,7 +1074,7 @@ const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
                       className={cn(
                         "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition",
                         selectedSet.has(option)
-                          ? "border-primary bg-primary text-primary-foreground"
+                          ? "border-chart-2 bg-chart-2 text-white"
                           : "border-input bg-background text-transparent",
                       )}
                     >
@@ -1076,11 +1138,17 @@ const HistogramCard: React.FC<{
     if (!hideCsvSpecLines && fileSpec.upper !== null && Number.isFinite(fileSpec.upper)) {
       nums.push(fileSpec.upper);
     }
+    if (drawableNewSpec.lower !== null && Number.isFinite(drawableNewSpec.lower)) {
+      nums.push(drawableNewSpec.lower);
+    }
+    if (drawableNewSpec.upper !== null && Number.isFinite(drawableNewSpec.upper)) {
+      nums.push(drawableNewSpec.upper);
+    }
     return {
       min: Math.min(...nums),
       max: Math.max(...nums),
     };
-  }, [fileSpec.lower, fileSpec.upper, hideCsvSpecLines, values]);
+  }, [drawableNewSpec.lower, drawableNewSpec.upper, fileSpec.lower, fileSpec.upper, hideCsvSpecLines, values]);
 
   const chartData = useMemo(
     () => {
@@ -1264,31 +1332,32 @@ const HistogramCard: React.FC<{
       </div>
 
       <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-6">
-        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-center text-xs">
           <div className="text-muted-foreground">测量点数</div>
-          <div className="mt-0.5 font-semibold text-foreground">{file.totalPoints}</div>
+          <div className="mt-0.5 text-base font-semibold text-foreground">{file.totalPoints}</div>
         </div>
-        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-center text-xs">
           <div className="text-muted-foreground">良率</div>
-          <div className="mt-0.5 font-semibold text-foreground">
+          <div className="mt-0.5 text-base font-semibold text-foreground">
             {file.yieldRate === null ? "-" : `${file.yieldRate.toFixed(2)}%`}
           </div>
         </div>
-        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-center text-xs">
           <div className="text-muted-foreground">数量</div>
-          <div className="mt-0.5 font-semibold text-foreground">{stats.count}</div>
+          <div className="mt-0.5 text-base font-semibold text-foreground">{stats.count}</div>
         </div>
-        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-center text-xs">
           <div className="text-muted-foreground">平均数</div>
-          <div className="mt-0.5 font-semibold text-foreground">{fmt(stats.mean, 2)}</div>
+          <div className="mt-0.5 text-base font-semibold text-foreground">{fmt(stats.mean, 2)}</div>
         </div>
-        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-center text-xs">
           <div className="text-muted-foreground">标准差</div>
-          <div className="mt-0.5 font-semibold text-foreground">{fmt(stats.standardDeviation, 2)}</div>
+          <div className="mt-0.5 text-base font-semibold text-foreground">{fmt(stats.standardDeviation, 2)}</div>
         </div>
-        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-center text-xs">
           <div className="text-muted-foreground">未来良率</div>
-          <div className="mt-0.5 font-semibold text-foreground">{formatFutureYield(futureYield)}</div>
+          <div className="mt-0.5 font-semibold text-foreground">{formatFutureYieldRate(futureYield)}</div>
+          <div className="mt-0.5 text-[11px] font-semibold text-foreground">{formatFutureYieldPoints(futureYield)}</div>
         </div>
       </div>
 
@@ -1370,11 +1439,17 @@ const BatchHistogramCard: React.FC<{
     if (!hideCsvSpecLines && csvSpecUpper !== null && Number.isFinite(csvSpecUpper)) {
       nums.push(csvSpecUpper);
     }
+    if (drawableGlobalNewSpec.lower !== null && Number.isFinite(drawableGlobalNewSpec.lower)) {
+      nums.push(drawableGlobalNewSpec.lower);
+    }
+    if (drawableGlobalNewSpec.upper !== null && Number.isFinite(drawableGlobalNewSpec.upper)) {
+      nums.push(drawableGlobalNewSpec.upper);
+    }
     return {
       min: Math.min(...nums),
       max: Math.max(...nums),
     };
-  }, [csvSpecLower, csvSpecUpper, hideCsvSpecLines, values]);
+  }, [csvSpecLower, csvSpecUpper, drawableGlobalNewSpec.lower, drawableGlobalNewSpec.upper, hideCsvSpecLines, values]);
 
   const chartData = useMemo(
     () => {
@@ -1548,25 +1623,26 @@ const BatchHistogramCard: React.FC<{
       </div>
 
       <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
-        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-center text-xs">
           <div className="text-muted-foreground">片数</div>
-          <div className="mt-0.5 font-semibold text-foreground">{waferCount}</div>
+          <div className="mt-0.5 text-base font-semibold text-foreground">{waferCount}</div>
         </div>
-        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-center text-xs">
           <div className="text-muted-foreground">数量</div>
-          <div className="mt-0.5 font-semibold text-foreground">{stats.count}</div>
+          <div className="mt-0.5 text-base font-semibold text-foreground">{stats.count}</div>
         </div>
-        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-center text-xs">
           <div className="text-muted-foreground">平均数</div>
-          <div className="mt-0.5 font-semibold text-foreground">{fmt(stats.mean, 2)}</div>
+          <div className="mt-0.5 text-base font-semibold text-foreground">{fmt(stats.mean, 2)}</div>
         </div>
-        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-center text-xs">
           <div className="text-muted-foreground">标准差</div>
-          <div className="mt-0.5 font-semibold text-foreground">{fmt(stats.standardDeviation, 2)}</div>
+          <div className="mt-0.5 text-base font-semibold text-foreground">{fmt(stats.standardDeviation, 2)}</div>
         </div>
-        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-xs">
+        <div className="rounded-md border border-input bg-muted/35 px-2.5 py-1.5 text-center text-xs">
           <div className="text-muted-foreground">未来良率</div>
-          <div className="mt-0.5 font-semibold text-foreground">{formatFutureYield(futureYield)}</div>
+          <div className="mt-0.5 font-semibold text-foreground">{formatFutureYieldRate(futureYield)}</div>
+          <div className="mt-0.5 text-[11px] font-semibold text-foreground">{formatFutureYieldPoints(futureYield)}</div>
         </div>
       </div>
 
@@ -1615,7 +1691,7 @@ const BatchHistogramCard: React.FC<{
 const CpHistogramView: React.FC = () => {
   useAppTitle({ title: "CP Histogram" });
 
-  const [files, setFiles] = useState<ParsedCpHistogramFile[]>(cpHistogramViewCache.files);
+  const [files, setFiles] = useState<ParsedCpHistogramFile[]>(() => sortCpHistogramFiles(cpHistogramViewCache.files));
   const [selectedTestItem, setSelectedTestItem] = useState(cpHistogramViewCache.selectedTestItem);
   const [selectedCpStages, setSelectedCpStages] = useState<string[]>(cpHistogramViewCache.selectedCpStages);
   const [selectedWaferGroups, setSelectedWaferGroups] = useState<string[]>(cpHistogramViewCache.selectedWaferGroups);
@@ -1668,7 +1744,7 @@ const CpHistogramView: React.FC = () => {
   useEffect(() => {
     setSelectedWaferGroups((prev) => {
       const available = new Set(availableWaferGroups);
-      const kept = prev.filter((group) => available.has(group));
+      const kept = availableWaferGroups.filter((group) => prev.includes(group) && available.has(group));
       if (kept.length > 0 || availableWaferGroups.length === 0) {
         return kept;
       }
@@ -1710,8 +1786,10 @@ const CpHistogramView: React.FC = () => {
 
   const selectedFiles = useMemo(
     () =>
-      files.filter(
-        (file) => selectedCpStages.includes(file.cpStage) && selectedWaferGroups.includes(file.waferGroup),
+      sortCpHistogramFiles(
+        files.filter(
+          (file) => selectedCpStages.includes(file.cpStage) && selectedWaferGroups.includes(file.waferGroup),
+        ),
       ),
     [files, selectedCpStages, selectedWaferGroups],
   );
@@ -1851,7 +1929,7 @@ const CpHistogramView: React.FC = () => {
 
       if (success.length > 0) {
         setFiles((prev) => {
-          const next = [...prev, ...success];
+          const next = sortCpHistogramFiles([...prev, ...success]);
           const nextCpStages = getCpStageOptions(next);
           setSelectedCpStages(nextCpStages);
           setSelectedWaferGroups(getWaferGroupOptions(next, nextCpStages));
@@ -1885,13 +1963,20 @@ const CpHistogramView: React.FC = () => {
     if (!selectedTestItem) {
       return;
     }
-    setSpecOverrideMap((prev) => ({
+    const nextSpecByItem = (prev: Record<string, SpecInputs>) => ({
       ...prev,
       [selectedTestItem]: {
         lower: key === "lower" ? value : prev[selectedTestItem]?.lower ?? "",
         upper: key === "upper" ? value : prev[selectedTestItem]?.upper ?? "",
       },
-    }));
+    });
+
+    setSpecOverrideMap((prev) => nextSpecByItem(prev));
+    // Once a global spec exists for current test item, clear local drafts to avoid shadowing.
+    setLocalSpecDraftMap((prev) => {
+      const nextEntries = Object.entries(prev).filter(([draftKey]) => !draftKey.endsWith(`::${selectedTestItem}`));
+      return Object.fromEntries(nextEntries);
+    });
   };
 
   const updateLocalSpecDraft = (fileId: string, testItem: string, nextSpec: SpecInputs) => {
@@ -2111,7 +2196,11 @@ const CpHistogramView: React.FC = () => {
             清除全部
           </Button>
           <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-lg border border-input bg-background px-3 text-xs text-muted-foreground hover:text-foreground">
-            <Checkbox checked={hideCsvSpecLines} onCheckedChange={(checked) => setHideCsvSpecLines(checked === true)} />
+            <Checkbox
+              className="border-chart-2/60 data-[state=checked]:border-chart-2 data-[state=checked]:bg-chart-2 data-[state=checked]:text-white focus-visible:ring-chart-2"
+              checked={hideCsvSpecLines}
+              onCheckedChange={(checked) => setHideCsvSpecLines(checked === true)}
+            />
             <span>隐藏原先 spec</span>
           </label>
           <span className="text-xs text-muted-foreground">
@@ -2149,6 +2238,10 @@ const CpHistogramView: React.FC = () => {
                   ...prev,
                   [selectedTestItem]: nextSpec,
                 }));
+                setLocalSpecDraftMap((prev) => {
+                  const nextEntries = Object.entries(prev).filter(([draftKey]) => !draftKey.endsWith(`::${selectedTestItem}`));
+                  return Object.fromEntries(nextEntries);
+                });
               }}
             />
           </div>

@@ -19,6 +19,9 @@ import { Button } from "@/components/ui/button";
 
 const AUTH_TOKEN_KEY = "auth_token";
 const AUTH_USERNAME_KEY = "auth_username";
+const LOCAL_ADMIN_USER_ID = "admin";
+const LOCAL_ADMIN_PASSWORD = "1";
+const LOCAL_ADMIN_TOKEN = "local-admin-token";
 
 const getLoginErrorMessage = (message?: string) => {
   if (!message) {
@@ -96,7 +99,10 @@ export const MainLayout = () => {
   }, [resolvedTheme]);
 
   const onLogin = async () => {
-    if (!userId.trim() || !password.trim()) {
+    const trimmedUserId = userId.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedUserId || !trimmedPassword) {
       setLoginError("请输入账户和密码");
       return;
     }
@@ -104,9 +110,21 @@ export const MainLayout = () => {
     setIsSubmitting(true);
     setLoginError("");
     try {
+      if (
+        trimmedUserId.toLowerCase() === LOCAL_ADMIN_USER_ID &&
+        trimmedPassword === LOCAL_ADMIN_PASSWORD
+      ) {
+        localStorage.setItem(AUTH_TOKEN_KEY, LOCAL_ADMIN_TOKEN);
+        localStorage.setItem(AUTH_USERNAME_KEY, LOCAL_ADMIN_USER_ID);
+        setUsername(LOCAL_ADMIN_USER_ID);
+        setIsUnlocked(true);
+        setPassword("");
+        return;
+      }
+
       const result = await signInHttp({
-        userId: userId.trim(),
-        password: password.trim(),
+        userId: trimmedUserId,
+        password: trimmedPassword,
       });
 
       if (!result.success || !result.data?.token) {

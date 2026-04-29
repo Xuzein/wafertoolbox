@@ -110,6 +110,11 @@ const getSidebarIconTheme = (toolId: string) => {
         box: "bg-chart-1/20",
         icon: "text-chart-1",
       };
+    case "film-thickness-analyzer":
+      return {
+        box: "bg-chart-2/20",
+        icon: "text-chart-2",
+      };
     case "ibe-thickness":
       return {
         box: "bg-chart-2/20",

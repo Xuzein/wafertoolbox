@@ -11,6 +11,8 @@ export interface FileDropZoneProps extends React.HTMLAttributes<HTMLDivElement> 
   maxFiles?: number;
   /** Currently uploaded files */
   uploadedFiles?: Array<{ name: string }>;
+  /** Whether clicking the drop zone opens the file picker */
+  clickToSelect?: boolean;
 }
 
 const FileDropZone = React.forwardRef<HTMLDivElement, FileDropZoneProps>(
@@ -21,6 +23,7 @@ const FileDropZone = React.forwardRef<HTMLDivElement, FileDropZoneProps>(
       onFilesDrop,
       maxFiles = Infinity,
       uploadedFiles = [],
+      clickToSelect = true,
       ...props
     },
     ref,
@@ -81,6 +84,9 @@ const FileDropZone = React.forwardRef<HTMLDivElement, FileDropZoneProps>(
     };
 
     const handleClick = () => {
+      if (!clickToSelect) {
+        return;
+      }
       inputRef.current?.click();
     };
 
@@ -93,12 +99,13 @@ const FileDropZone = React.forwardRef<HTMLDivElement, FileDropZoneProps>(
             ? "border-primary bg-primary/5"
             : "border-input hover:border-muted-foreground/50",
           uploadedFiles.length >= maxFiles && "opacity-50 cursor-not-allowed",
+          clickToSelect ? "cursor-pointer" : "cursor-default",
           className,
         )}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        onClick={uploadedFiles.length < maxFiles ? handleClick : undefined}
+        onClick={uploadedFiles.length < maxFiles && clickToSelect ? handleClick : undefined}
         {...props}
       >
         <input
@@ -118,7 +125,7 @@ const FileDropZone = React.forwardRef<HTMLDivElement, FileDropZoneProps>(
         </div>
         <div className="text-center">
           <p className="text-sm font-medium text-foreground">
-            拖拽文件到此处，或点击上传
+            {clickToSelect ? "拖拽文件到此处，或点击上传" : "拖拽文件到此处"}
           </p>
           <p className="text-xs text-muted-foreground">
             支持 {accept.join(", ")} 格式

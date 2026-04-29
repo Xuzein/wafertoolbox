@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/wailsapp/wails/v2 v2.11.0
 	github.com/xuri/excelize/v2 v2.9.1
+	golang.org/x/image v0.25.0
 )
 
 require (

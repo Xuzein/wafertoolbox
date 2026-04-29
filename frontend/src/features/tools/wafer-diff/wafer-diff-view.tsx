@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -26,6 +27,7 @@ type WaferDiffViewCache = {
   diffMode: "strict" | "ignore-empty";
   showSame: boolean;
   showDiff: boolean;
+  validateWaferId: boolean;
   maps: ParsedAoiWaferMap[];
 };
 
@@ -33,6 +35,7 @@ const defaultWaferDiffViewCache: WaferDiffViewCache = {
   diffMode: "strict",
   showSame: true,
   showDiff: true,
+  validateWaferId: true,
   maps: [],
 };
 
@@ -44,6 +47,7 @@ const WaferDiffView: React.FC = () => {
   const [diffMode, setDiffMode] = useState<"strict" | "ignore-empty">(waferDiffViewCache.diffMode);
   const [showSame, setShowSame] = useState(waferDiffViewCache.showSame);
   const [showDiff, setShowDiff] = useState(waferDiffViewCache.showDiff);
+  const [validateWaferId, setValidateWaferId] = useState(waferDiffViewCache.validateWaferId);
   const [maps, setMaps] = useState<ParsedAoiWaferMap[]>(waferDiffViewCache.maps);
   const [isLoading, setIsLoading] = useState(false);
   const [isRecomputing, setIsRecomputing] = useState(false);
@@ -63,9 +67,10 @@ const WaferDiffView: React.FC = () => {
       diffMode,
       showSame,
       showDiff,
+      validateWaferId,
       maps,
     };
-  }, [diffMode, showSame, showDiff, maps]);
+  }, [diffMode, showSame, showDiff, validateWaferId, maps]);
 
   const diffMap = useMemo(() => {
     if (maps.length !== 2) {
@@ -243,7 +248,9 @@ const WaferDiffView: React.FC = () => {
         }
 
         if (nextMaps.length === 1) {
-          const mismatch = validateMapsForDiff(nextMaps[0], map);
+          const mismatch = validateMapsForDiff(nextMaps[0], map, {
+            validateWaferId,
+          });
           if (mismatch) {
             throw new Error(`${map.fileName} 无法参与 Gap 对比，${mismatch}`);
           }
@@ -520,6 +527,19 @@ const WaferDiffView: React.FC = () => {
                 ? "任一位置状态不同即判定为 Gap"
                 : "若任一侧为空位则不计入 Gap"}
             </div>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-input bg-background p-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-foreground">
+            <Checkbox
+              checked={validateWaferId}
+              onCheckedChange={(checked) => setValidateWaferId(checked === true)}
+            />
+            <span>校验片号一致性</span>
+          </label>
+          <div className="text-xs text-muted-foreground">
+            关闭后允许不同片号参与 Gap 对比，但仍会校验矩阵尺寸是否一致。
           </div>
         </div>
 
