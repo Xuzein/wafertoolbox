@@ -13,7 +13,9 @@ void SetNSAppearance(const char* theme) {
         NSAppearance *appearance = nil;
         NSString *t = [NSString stringWithUTF8String:theme];
         if ([t isEqualToString:@"dark"]) {
-            appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+            if (@available(macOS 10.14, *)) {
+                appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+            }
         } else if ([t isEqualToString:@"light"]) {
             appearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
         }

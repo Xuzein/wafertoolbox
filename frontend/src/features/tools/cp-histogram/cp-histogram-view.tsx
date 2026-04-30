@@ -160,6 +160,12 @@ const CHART_BLUE = {
   softFill: "rgba(37, 99, 235, 0.10)",
 } as const;
 
+type HistogramPalette = {
+  from: string;
+  to: string;
+  border: string;
+};
+
 const SPEC_RED = {
   fillSoft: "rgba(220, 38, 38, 0.12)",
   chipBorder: "border-destructive/45",
@@ -167,7 +173,68 @@ const SPEC_RED = {
   chipText: "text-destructive",
 } as const;
 
-const HISTOGRAM_PALETTES = [{ from: CHART_BLUE.from, to: CHART_BLUE.to, border: CHART_BLUE.border }] as const;
+const DEFAULT_HISTOGRAM_PALETTE: HistogramPalette = {
+  from: CHART_BLUE.from,
+  to: CHART_BLUE.to,
+  border: CHART_BLUE.border,
+};
+
+const HISTOGRAM_PALETTE_BY_CP_STAGE: Record<string, HistogramPalette> = {
+  CP1: {
+    from: "rgba(37, 99, 235, 0.90)",
+    to: "rgba(96, 165, 250, 0.84)",
+    border: "rgba(29, 78, 216, 0.96)",
+  },
+  CP2: {
+    from: "rgba(34, 197, 94, 0.88)",
+    to: "rgba(134, 239, 172, 0.82)",
+    border: "rgba(22, 163, 74, 0.96)",
+  },
+  CP3: {
+    from: "rgba(249, 115, 22, 0.90)",
+    to: "rgba(253, 186, 116, 0.84)",
+    border: "rgba(234, 88, 12, 0.96)",
+  },
+  CP4: {
+    from: "rgba(14, 165, 233, 0.90)",
+    to: "rgba(125, 211, 252, 0.84)",
+    border: "rgba(2, 132, 199, 0.96)",
+  },
+  CP5: {
+    from: "rgba(236, 72, 153, 0.88)",
+    to: "rgba(244, 114, 182, 0.82)",
+    border: "rgba(219, 39, 119, 0.96)",
+  },
+  CP1R: {
+    from: "rgba(245, 158, 11, 0.92)",
+    to: "rgba(253, 224, 71, 0.84)",
+    border: "rgba(217, 119, 6, 0.96)",
+  },
+  CP2R: {
+    from: "rgba(147, 51, 234, 0.90)",
+    to: "rgba(192, 132, 252, 0.84)",
+    border: "rgba(126, 34, 206, 0.96)",
+  },
+  CP3R: {
+    from: "rgba(239, 68, 68, 0.90)",
+    to: "rgba(252, 165, 165, 0.84)",
+    border: "rgba(220, 38, 38, 0.96)",
+  },
+  CP4R: {
+    from: "rgba(6, 182, 212, 0.90)",
+    to: "rgba(103, 232, 249, 0.84)",
+    border: "rgba(8, 145, 178, 0.96)",
+  },
+  CP5R: {
+    from: "rgba(168, 85, 247, 0.90)",
+    to: "rgba(216, 180, 254, 0.84)",
+    border: "rgba(147, 51, 234, 0.96)",
+  },
+};
+
+const getHistogramPalette = (cpStage: string): HistogramPalette => {
+  return HISTOGRAM_PALETTE_BY_CP_STAGE[cpStage.toUpperCase()] ?? DEFAULT_HISTOGRAM_PALETTE;
+};
 
 const SPEC_LINE_MIN_GAP = 1e-9;
 
@@ -588,7 +655,7 @@ const getLocalSpecKey = (fileId: string, testItem: string) => `${fileId}::${test
 const parseCpHistogramFilenameMeta = (fileName: string): CpHistogramFilenameMeta | null => {
   const baseName = fileName.replace(/\.[^.]+$/i, "");
   const parts = baseName.split("_").map((part) => part.trim());
-  const cpStage = parts.find((part) => /^CP\d+$/i.test(part));
+  const cpStage = parts.find((part) => /^CP\d+R?$/i.test(part));
   const lotSegment = parts[1];
   const waferSegment = parts[2];
 
@@ -603,10 +670,17 @@ const parseCpHistogramFilenameMeta = (fileName: string): CpHistogramFilenameMeta
 };
 
 const sortCpStages = (a: string, b: string) => {
-  const aNumber = Number(a.match(/^CP(\d+)$/i)?.[1]);
-  const bNumber = Number(b.match(/^CP(\d+)$/i)?.[1]);
+  const aMatch = a.match(/^CP(\d+)(R?)$/i);
+  const bMatch = b.match(/^CP(\d+)(R?)$/i);
+  const aNumber = Number(aMatch?.[1]);
+  const bNumber = Number(bMatch?.[1]);
   if (Number.isFinite(aNumber) && Number.isFinite(bNumber) && aNumber !== bNumber) {
     return aNumber - bNumber;
+  }
+  const aIsRecheck = aMatch?.[2]?.toUpperCase() === "R";
+  const bIsRecheck = bMatch?.[2]?.toUpperCase() === "R";
+  if (aIsRecheck !== bIsRecheck) {
+    return aIsRecheck ? 1 : -1;
   }
   return a.localeCompare(b);
 };
@@ -1098,7 +1172,6 @@ const HistogramCard: React.FC<{
   globalNewSpec: SpecInputs;
   localNewSpec: SpecInputs | null;
   hideCsvSpecLines: boolean;
-  paletteIndex: number;
   onLocalNewSpecChange: (nextSpec: SpecInputs) => void;
   onApplyLocalSpecAsGlobal: () => void;
 }> = ({
@@ -1108,7 +1181,6 @@ const HistogramCard: React.FC<{
   globalNewSpec,
   localNewSpec,
   hideCsvSpecLines,
-  paletteIndex,
   onLocalNewSpecChange,
   onApplyLocalSpecAsGlobal,
 }) => {
@@ -1122,7 +1194,7 @@ const HistogramCard: React.FC<{
   const drawableNewSpec = getDrawableSpec(activeNewSpecInputs);
   const futureYield = calcFutureYield(values, activeNewSpec);
   const hasLocalSpec = localNewSpec !== null;
-  const palette = HISTOGRAM_PALETTES[paletteIndex % HISTOGRAM_PALETTES.length];
+  const palette = getHistogramPalette(file.cpStage);
 
   const xMin = values.length > 0 ? Math.min(...values) : null;
   const xMax = values.length > 0 ? Math.max(...values) : null;
@@ -1411,8 +1483,9 @@ const BatchHistogramCard: React.FC<{
   globalNewSpec: SpecInputs;
   hideCsvSpecLines: boolean;
   waferCount: number;
+  cpStage: string | null;
   onGlobalNewSpecChange: (nextSpec: SpecInputs) => void;
-}> = ({ testItem, values, csvSpecLower, csvSpecUpper, globalNewSpec, hideCsvSpecLines, waferCount, onGlobalNewSpecChange }) => {
+}> = ({ testItem, values, csvSpecLower, csvSpecUpper, globalNewSpec, hideCsvSpecLines, waferCount, cpStage, onGlobalNewSpecChange }) => {
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ChartJS<"bar"> | null>(null);
   const histogram = useMemo(() => buildHistogram(values), [values]);
@@ -1426,7 +1499,7 @@ const BatchHistogramCard: React.FC<{
   const xMax = values.length > 0 ? Math.max(...values) : null;
   const hasCsvSpecLine =
     (csvSpecLower !== null && Number.isFinite(csvSpecLower)) || (csvSpecUpper !== null && Number.isFinite(csvSpecUpper));
-  const palette = HISTOGRAM_PALETTES[0];
+  const palette = getHistogramPalette(cpStage ?? "");
 
   const xDomain = useMemo(() => {
     if (values.length === 0) {
@@ -1793,6 +1866,14 @@ const CpHistogramView: React.FC = () => {
       ),
     [files, selectedCpStages, selectedWaferGroups],
   );
+
+  const batchCpStage = useMemo(() => {
+    const stageSet = new Set(selectedFiles.map((file) => file.cpStage));
+    if (stageSet.size === 1) {
+      return selectedFiles[0]?.cpStage ?? null;
+    }
+    return null;
+  }, [selectedFiles]);
 
   const defaultSpec = useMemo(() => {
     if (!selectedTestItem) {
@@ -2233,6 +2314,7 @@ const CpHistogramView: React.FC = () => {
               globalNewSpec={currentOverride}
               hideCsvSpecLines={hideCsvSpecLines}
               waferCount={selectedFiles.length}
+              cpStage={batchCpStage}
               onGlobalNewSpecChange={(nextSpec) => {
                 setSpecOverrideMap((prev) => ({
                   ...prev,
@@ -2264,7 +2346,6 @@ const CpHistogramView: React.FC = () => {
               globalNewSpec={currentOverride}
               localNewSpec={localSpecDraftMap[getLocalSpecKey(file.id, selectedTestItem)] ?? null}
               hideCsvSpecLines={hideCsvSpecLines}
-              paletteIndex={files.findIndex((item) => item.id === file.id)}
               onLocalNewSpecChange={(nextSpec) => updateLocalSpecDraft(file.id, selectedTestItem, nextSpec)}
               onApplyLocalSpecAsGlobal={() => applyLocalSpecToGlobal(file.id, selectedTestItem)}
             />
